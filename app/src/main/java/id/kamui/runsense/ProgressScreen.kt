@@ -75,7 +75,7 @@ internal fun ProgressScreen(
     modifier: Modifier,
     onCheckin: (ActivityRecord) -> Unit,
 ) {
-    var rangeWeeks by remember { mutableIntStateOf(8) }
+    var rangeWeeks by rememberSaveable { mutableIntStateOf(8) }
     val now = System.currentTimeMillis()
     val today = java.time.LocalDate.now()
     val monday = today.minusDays((today.dayOfWeek.value - 1).toLong())

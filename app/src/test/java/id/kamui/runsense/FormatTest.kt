@@ -17,6 +17,7 @@ class FormatTest {
         assertEquals("—", RunSenseFormat.distanceKm(0.0))
         assertEquals("—", RunSenseFormat.distanceKm(-1.0))
         assertEquals("—", RunSenseFormat.distanceKm(Double.NaN))
+        assertEquals("—", RunSenseFormat.distanceKm(Double.POSITIVE_INFINITY))
         assertEquals("5.00 km", RunSenseFormat.distanceKm(5.0))
     }
 
@@ -24,6 +25,7 @@ class FormatTest {
         assertEquals("—", RunSenseFormat.pace(0.0))
         assertEquals("—", RunSenseFormat.pace(-1.0))
         assertEquals("—", RunSenseFormat.pace(Double.NaN))
+        assertEquals("—", RunSenseFormat.pace(Double.POSITIVE_INFINITY))
         assertEquals("6:30", RunSenseFormat.pace(6.5))
     }
 
@@ -32,6 +34,7 @@ class FormatTest {
         assertEquals("—", RunSenseFormat.sleepHours(0.0))
         assertEquals("—", RunSenseFormat.sleepHours(-2.0))
         assertEquals("—", RunSenseFormat.sleepHours(Double.NaN))
+        assertEquals("—", RunSenseFormat.sleepHours(Double.POSITIVE_INFINITY))
         assertEquals("7j 30m", RunSenseFormat.sleepHours(7.5))
     }
 }

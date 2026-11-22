@@ -122,7 +122,7 @@ internal fun SettingsScreen(
         InfoCard("Status PAR-Q", if (answered < 7) "$answered/7 pertanyaan terisi" else if (yesCount > 0) "$yesCount jawaban YA — perlu tindak lanjut" else "Semua jawaban TIDAK", if (yesCount > 0) "PERHATIAN" else "SKRINING")
         OutlinedButton(onClick = onParq, modifier = Modifier.fillMaxWidth()) { Text("Isi / perbarui PAR-Q") }
         if (yesCount > 0) Text("Ada jawaban YA. Konsultasikan dengan tenaga kesehatan sebelum memulai atau meningkatkan latihan.", color = Color(0xFFFFC36A), fontSize = 11.sp, lineHeight = 16.sp)
-        var showAllWellness by remember(wellness) { mutableStateOf(false) }
+        var showAllWellness by rememberSaveable(wellness) { mutableStateOf(false) }
         val wellnessToday = java.time.LocalDate.now()
         val validWellness = wellness.filter { item ->
             val date = runCatching { java.time.LocalDate.parse(item.date) }.getOrNull()

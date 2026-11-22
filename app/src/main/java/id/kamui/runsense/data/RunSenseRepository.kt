@@ -431,6 +431,109 @@ class RunSenseRepository(context: Context) {
         return added to incomingWell.length()
     }
 
+    data class BackupImportResult(val activitiesAdded: Int, val strengthAdded: Int, val wellnessAdded: Int, val settingsAdded: Int, val skipped: Int)
+
+    private val backupSettingKeys = setOf(
+        "rhr", "maxHr", "lthr", "ltPace", "heightCm", "weightKg",
+        "runwalk_enabled", "runwalk_run_seconds", "runwalk_walk_seconds",
+        "weekly_strength_target", "parq_answers", "parq_updated_at",
+        "plan_settings", "light_theme", "onboarding_complete"
+    )
+
+    /** Portable backup excludes credentials, transient weather, and large stream caches. */
+    fun exportBackupJson(): String {
+        val settings = JSONObject()
+        backupSettingKeys.forEach { key ->
+            if (prefs.contains(key)) {
+                val value = prefs.all[key]
+                if (value != null) settings.put(key, value)
+            }
+        }
+        return JSONObject()
+            .put("schema_version", 1)
+            .put("exported_at", System.currentTimeMillis())
+            .put("settings", settings)
+            .put("activities", readArray("activities"))
+            .put("strength", readArray("strength"))
+            .put("wellness", readArray("wellness"))
+            .toString(2)
+    }
+
+    /** Restore is additive: existing records/settings win; only missing stable IDs/keys are added. */
+    fun importBackupJson(raw: String): BackupImportResult {
+        val root = JSONObject(raw)
+        val schema = root.optInt("schema_version", 0)
+        require(schema in 1..1) { "Versi backup tidak didukung (schema $schema)." }
+        var skipped = 0
+
+        fun mergeRecords(key: String, identity: (JSONObject) -> String, valid: (JSONObject) -> Boolean = { true }): Pair<Int, Int> {
+            val current = readArray(key)
+            val seen = LinkedHashSet<String>()
+            val merged = JSONArray()
+            for (i in 0 until current.length()) {
+                val item = current.optJSONObject(i) ?: continue
+                val id = identity(item)
+                if (id.isNotBlank() && seen.add(id)) merged.put(item)
+            }
+            var added = 0
+            val incoming = root.optJSONArray(key) ?: JSONArray()
+            for (i in 0 until incoming.length()) {
+                val item = incoming.optJSONObject(i) ?: run { skipped++; continue }
+                val id = identity(item)
+                if (id.isBlank() || !valid(item) || !seen.add(id)) {
+                    skipped++
+                    continue
+                }
+                merged.put(item)
+                added++
+            }
+            writeArray(key, merged)
+            return added to incoming.length()
+        }
+
+        val acts = mergeRecords("activities", { it.optString("id") }) { item ->
+            item.optLong("startedAt", -1L) > 0L &&
+                item.optDouble("durationMin", Double.NaN).let { it.isFinite() && it > 0.0 } &&
+                item.optDouble("distanceKm", Double.NaN).let { it.isFinite() && it >= 0.0 }
+        }
+        val strengthItems = mergeRecords("strength", { it.optString("id") }) { item ->
+            runCatching { java.time.LocalDate.parse(item.optString("date")) }.isSuccess &&
+                item.optInt("durationMin", -1) >= 0
+        }
+        val wellnessItems = mergeRecords("wellness", { it.optString("date") }) { item ->
+            val date = item.optString("date")
+            validWellnessDate(date) && (
+                item.optInt("restingHr", 0) in 25..250 ||
+                    finitePositive(item, "sleepHours") != null ||
+                    finitePositive(item, "hrv") != null
+            )
+        }
+
+        var settingsAdded = 0
+        val incomingSettings = root.optJSONObject("settings") ?: JSONObject()
+        val editor = prefs.edit()
+        for (key in backupSettingKeys) {
+            if (prefs.contains(key) || !incomingSettings.has(key) || incomingSettings.isNull(key)) {
+                if (incomingSettings.has(key)) skipped++
+                continue
+            }
+            val value = incomingSettings.get(key)
+            when (value) {
+                is Boolean -> editor.putBoolean(key, value)
+                is Int -> editor.putInt(key, value)
+                is Long -> editor.putLong(key, value)
+                is Double -> if (value.isFinite()) editor.putFloat(key, value.toFloat())
+                is String -> editor.putString(key, value)
+            }
+            settingsAdded++
+        }
+        editor.apply()
+        val totalIncoming = acts.second + strengthItems.second + wellnessItems.second + incomingSettings.length()
+        val totalAdded = acts.first + strengthItems.first + wellnessItems.first + settingsAdded
+        skipped = maxOf(skipped, totalIncoming - totalAdded)
+        return BackupImportResult(acts.first, strengthItems.first, wellnessItems.first, settingsAdded, skipped)
+    }
+
     private fun objects(key: String): List<JSONObject> { val a = readArray(key); return (0 until a.length()).mapNotNull { a.optJSONObject(it) } }
     private fun readArray(k: String): JSONArray = try { JSONArray(prefs.getString(k, "[]")) } catch (_: Exception) { JSONArray() }
     private fun writeArray(k: String, v: JSONArray) { prefs.edit().putString(k, v.toString()).apply() }

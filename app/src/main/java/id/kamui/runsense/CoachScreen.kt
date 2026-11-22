@@ -106,6 +106,20 @@ internal fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSumm
             InfoCard("Sesi quality 7 hari", "${summary.qualitySessions7d} sesi tercatat", if (summary.qualitySessions7d >= 2) "KUNCI QUALITY" else "TERPANTAU")
             InfoCard("Strength kaki 48 jam", "${RunSenseFormat.decimal(summary.legStrengthLoad48h, 1)} unit beban", if (summary.legStrengthLoad48h >= 3.4) "WASPADA BEBAN" else "NORMAL")
             InfoCard("Total strength 48 jam", "${RunSenseFormat.decimal(summary.strengthLoad48h, 1)} unit beban", if (summary.strengthLoad48h >= 4.0) "BEBAN TINGGI" else "TERPANTAU")
+            val exerciseHistory = strength.filter { it.exercise.isNotBlank() }.groupBy { it.exercise.trim() }
+                .entries.sortedByDescending { (_, rows) -> rows.maxOfOrNull { it.date } ?: "" }.take(6)
+            if (exerciseHistory.isNotEmpty()) {
+                SectionTitle("Progres per gerakan", "BERDASARKAN RIWAYAT")
+                exerciseHistory.forEach { (exercise, rows) ->
+                    val suggestion = TrainingEngine.suggestStrength(exercise, strength)
+                    val target = if (suggestion.doseType == "duration") {
+                        "Target berikutnya: ${suggestion.durationMin} menit"
+                    } else {
+                        "Target berikutnya: ${suggestion.sets} set × ${suggestion.reps} repetisi"
+                    }
+                    InfoCard(exercise, "$target · Level ${suggestion.level}", suggestion.note)
+                }
+            }
             InfoCard("Respons tubuh 7 hari", "$checkins7d check-in lari tercatat", if (checkins7d > 0) "TERCATAT" else "BELUM ADA")
             InfoCard("Strength minggu ini", "$strengthDaysThisWeek / $strengthTarget hari tercapai", if (strengthDaysThisWeek >= strengthTarget && strengthTarget > 0) "TARGET TERCAPAI" else "PROGRES")
             Text("Check-in dilakukan dari detail sesi. Hanya strength yang ditandai selesai masuk ke beban Coach.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
@@ -169,7 +183,10 @@ internal fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSumm
                     val plannedText = if (isStrengthPlanned) "Target: $plannedTitle" else "Strength tambahan"
                     val actualText = when {
                         completedRecords.isNotEmpty() -> completedRecords.joinToString { record ->
-                            strengthLabel(record.category) + if (record.exercise.isNotBlank()) " · ${record.exercise} ${record.sets}×${record.reps}" else ""
+                            strengthLabel(record.category) + if (record.exercise.isNotBlank()) {
+                                val dose = if (record.doseType == "duration") "${record.durationMin} menit" else "${record.sets}×${record.reps}"
+                                " · ${record.exercise} $dose"
+                            } else ""
                         }
                         dayRecords.isNotEmpty() -> "Ada catatan, tetapi belum ditandai selesai"
                         else -> "Belum ada catatan strength"

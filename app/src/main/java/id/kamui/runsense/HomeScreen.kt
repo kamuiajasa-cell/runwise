@@ -82,7 +82,7 @@ internal fun HomeScreen(activities: List<ActivityRecord>, summary: TrainingSumma
             MetricCard("STRENGTH 48J", RunSenseFormat.decimal(summary.strengthLoad48h, 1), Modifier.weight(1f))
         } }
         item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(onClick = onAdd, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = Ink)) { Text("＋ Catat latihan") }
+            Button(onClick = onAdd, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = OnLime)) { Text("＋ Catat latihan") }
             OutlinedButton(onClick = onStrength, modifier = Modifier.weight(1f)) { Text("＋ Strength") }
         } }
         item { SectionKicker("AKTIVITAS TERBARU", "02") }

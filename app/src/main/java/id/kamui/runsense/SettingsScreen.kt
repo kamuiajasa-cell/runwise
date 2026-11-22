@@ -63,6 +63,7 @@ import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.abs
 
+@Composable
 internal fun SettingsScreen(
     profile: AthleteProfile, wellness: List<WellnessRecord>, modifier: Modifier,
     strengthTarget: Int, parqAnswers: List<Boolean?>, onStrengthTarget: () -> Unit, onParq: () -> Unit,
@@ -151,4 +152,3 @@ internal fun SettingsScreen(
     }
 }
 
-@Composable

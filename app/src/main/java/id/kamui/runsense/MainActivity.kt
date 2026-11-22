@@ -1361,7 +1361,7 @@ private fun SettingsScreen(
                 "TERSIMPAN"
             )
         }
-        if (validWellness.size > 3) {
+        if (validWellness.size > recentWellness.size) {
             TextButton(onClick = { showAllWellness = !showAllWellness }, modifier = Modifier.fillMaxWidth()) {
                 Text(if (showAllWellness) "Tampilkan 3 hari terakhir" else "Lihat semua (${validWellness.size} hari)", color = Lime)
             }
@@ -1554,7 +1554,7 @@ private fun CheckinActivityCard(activity: ActivityRecord, onCheckin: (ActivityRe
                     Text("Lari · $stamp", color = White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Text("${RunSenseFormat.durationMinutes(activity.durationMin)} · ${RunSenseFormat.distanceKm(activity.distanceKm)} · HR ${RunSenseFormat.bpm(activity.averageHr)}", color = Muted, fontSize = 11.sp)
                 }
-                Text(if (activity.quality) "QUALITY" else "RUN", color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(if (activity.quality) "QUALITY" else "LARI", color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
             if (activity.rpe > 0 || activity.feel.isNotBlank() || activity.pain > 0) {
                 Text("RPE ${activity.rpe}/10 · ${activity.feel.ifBlank { "feel belum diisi" }} · nyeri ${activity.pain}/10", color = Muted, fontSize = 11.sp)

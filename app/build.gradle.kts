@@ -3,6 +3,12 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+val releaseKeystoreFile = System.getenv("RUNSENSE_KEYSTORE_FILE")
+val releaseStorePassword = System.getenv("RUNSENSE_STORE_PASSWORD")
+val releaseKeyAlias = System.getenv("RUNSENSE_KEY_ALIAS")
+val releaseKeyPassword = System.getenv("RUNSENSE_KEY_PASSWORD")
+
 android {
     namespace = "id.kamui.runsense"
     compileSdk = 36
@@ -10,8 +16,24 @@ android {
         applicationId = "id.kamui.runsense"
         minSdk = 29
         targetSdk = 35
-        versionCode = 2
-        versionName = "2.0.0-native"
+        versionCode = providers.gradleProperty("VERSION_CODE").orElse("2").get().toInt()
+        versionName = providers.gradleProperty("VERSION_NAME").orElse("2.0.0-native").get()
+    }
+    signingConfigs {
+        create("release") {
+            if (!releaseKeystoreFile.isNullOrBlank()) {
+                storeFile = file(releaseKeystoreFile)
+            }
+            storePassword = releaseStorePassword
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+        }
+    }
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
+        }
     }
     buildFeatures { compose = true }
     compileOptions {
@@ -21,6 +43,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 }
+
 dependencies {
     implementation(project(":domain"))
     implementation(project(":data"))

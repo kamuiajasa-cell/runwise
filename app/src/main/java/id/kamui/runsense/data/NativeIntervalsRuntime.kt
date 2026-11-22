@@ -27,14 +27,22 @@ class NativeIntervalsRuntime(context: Context) {
     private val app = context.applicationContext
     private val prefs = app.getSharedPreferences("runsense_native_v1", Context.MODE_PRIVATE)
     private val local = RunSenseRepository(app)
+    private val apiKeyVault = ApiKeyVault(app)
     private lateinit var domain: DomainRepository
     private lateinit var icu: IcuHttp
 
     init {
         val store = object : KeyValueStore {
-            override fun read(key: String): String? = prefs.getString(key, null)
-            override fun write(key: String, value: String) { prefs.edit().putString(key, value).apply() }
-            override fun remove(key: String) { prefs.edit().remove(key).apply() }
+            override fun read(key: String): String? =
+                if (key == DomainRepository.KEY_API) apiKeyVault.read() else prefs.getString(key, null)
+            override fun write(key: String, value: String) {
+                if (key == DomainRepository.KEY_API) apiKeyVault.write(value)
+                else prefs.edit().putString(key, value).apply()
+            }
+            override fun remove(key: String) {
+                if (key == DomainRepository.KEY_API) apiKeyVault.remove()
+                else prefs.edit().remove(key).apply()
+            }
         }
         val http = object : HttpClient {
             override suspend fun get(url: String, headers: Map<String, String>): HttpResponse =
@@ -51,7 +59,7 @@ class NativeIntervalsRuntime(context: Context) {
                         val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
                         if (status in 200..299) {
                             val streamId = Regex("/activity/([^/?]+)/streams\\.json").find(url)?.groupValues?.getOrNull(1)
-                            if (!streamId.isNullOrBlank()) prefs.edit().putString("icu_stream_$streamId", body).apply()
+                            if (!streamId.isNullOrBlank()) local.storeIcuStream(streamId, body)
                         }
                         HttpResponse(status, body)
                     } finally {
@@ -88,6 +96,8 @@ class NativeIntervalsRuntime(context: Context) {
     fun climateContexts(): Map<Long, ClimCtx> = domain.climate.ctx
 
     fun hasApiKey(): Boolean = !domain.apiKey.isNullOrBlank()
+
+    fun apiKeyLastFour(): String? = domain.apiKey?.takeIf { it.isNotBlank() }?.takeLast(4)
 
     fun snapshot(): Snapshot = domain.data.snapshot(System.currentTimeMillis(), ZoneId.systemDefault())
 
@@ -144,8 +154,16 @@ class NativeIntervalsRuntime(context: Context) {
                 val detail = response.take(240)
                 throw IllegalStateException("Intervals.icu menolak workout (HTTP $status)${if (detail.isNotBlank()) ": $detail" else ""}")
             }
-            val eventId = runCatching { org.json.JSONObject(response).optLong("id", 0L) }.getOrDefault(0L)
-            if (eventId > 0) "Workout berhasil dikirim ke kalender Intervals.icu (ID $eventId)." else "Workout berhasil dikirim ke kalender Intervals.icu."
+            val event = runCatching { org.json.JSONObject(response) }.getOrNull()
+            val eventId = event?.optLong("id", 0L) ?: 0L
+            // Intervals.icu parses its native workout-description syntax into workout_doc.steps.
+            // Do not send workout_doc ourselves: the API parser owns this field.
+            val parsedSteps = event?.optJSONObject("workout_doc")?.optJSONArray("steps")?.length() ?: 0
+            when {
+                eventId <= 0L -> "Workout dikirim, tetapi ID event tidak diterima. Periksa kalender Intervals.icu."
+                parsedSteps > 0 -> "Workout berhasil dikirim ke kalender Intervals.icu (ID $eventId · $parsedSteps langkah terstruktur)."
+                else -> "Workout tersimpan di kalender Intervals.icu (ID $eventId), tetapi respons belum memuat langkah terstruktur. Periksa deskripsi workout di Intervals.icu sebelum mengandalkannya untuk sinkronisasi perangkat."
+            }
         } finally {
             connection.disconnect()
         }
@@ -154,6 +172,7 @@ class NativeIntervalsRuntime(context: Context) {
     suspend fun sync(apiKey: String? = null): String {
         if (!apiKey.isNullOrBlank()) domain.login(apiKey.trim())
         val result = domain.sync(silent = false)
+        if (result.ok) local.saveLastSyncAt()
         // Ambil stream untuk seluruh lari Intervals.icu yang belum tersimpan.
         // Stream disimpan lokal saat HTTP request berlangsung, sehingga layar Riwayat
         // cukup membaca cache dan tidak perlu tombol "Muat stream".
@@ -172,7 +191,7 @@ class NativeIntervalsRuntime(context: Context) {
         }
         val imported = local.importDomainRecords(domain.data.acts, domain.data.wellness)
         return buildString {
-            append(result.message.ifBlank { if (result.ok) "Sinkron selesai" else "Belum ada hasil sinkron" })
+            append(if (result.ok) result.message.ifBlank { "Sinkron selesai" } else "Sinkron belum berhasil. Periksa API key dan koneksi internet.")
             if (result.ok) append(" · ${imported.first} aktivitas baru · ${imported.second} hari wellness diperbarui · $streamsLoaded stream lari tersimpan")
         }
     }

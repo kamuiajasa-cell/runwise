@@ -16,7 +16,7 @@ android {
         applicationId = "id.kamui.runsense"
         minSdk = 29
         targetSdk = 35
-        versionCode = providers.gradleProperty("VERSION_CODE").orElse("2").get().toInt()
+        versionCode = providers.gradleProperty("VERSION_CODE").orElse(providers.environmentVariable("GITHUB_RUN_NUMBER")).orElse("2").get().toInt()
         versionName = providers.gradleProperty("VERSION_NAME").orElse("2.0.0-native").get()
     }
     signingConfigs {
@@ -30,6 +30,10 @@ android {
         }
     }
     buildTypes {
+        getByName("debug") {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         getByName("release") {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("release")

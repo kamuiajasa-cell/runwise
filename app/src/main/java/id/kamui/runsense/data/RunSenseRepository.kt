@@ -145,6 +145,10 @@ class RunSenseRepository(context: Context) {
             .put("longitude", weather.longitude).toString()).apply()
         return weather
     }
+    fun lastSyncAt(): Long = prefs.getLong("last_sync_at", 0L)
+    fun saveLastSyncAt(timestamp: Long = System.currentTimeMillis()) {
+        prefs.edit().putLong("last_sync_at", timestamp.coerceAtLeast(0L)).apply()
+    }
     fun isLightTheme(): Boolean = prefs.getBoolean("light_theme", false)
     fun saveLightTheme(enabled: Boolean) { prefs.edit().putBoolean("light_theme", enabled).apply() }
     fun onboardingComplete(): Boolean = prefs.getBoolean("onboarding_complete", false)
@@ -436,7 +440,7 @@ class RunSenseRepository(context: Context) {
     private val backupSettingKeys = setOf(
         "rhr", "maxHr", "lthr", "ltPace", "heightCm", "weightKg",
         "runwalk_enabled", "runwalk_run_seconds", "runwalk_walk_seconds",
-        "weekly_strength_target", "parq_answers", "parq_updated_at",
+        "weekly_strength_target", "parq_answers", "parq_updated_at", "last_sync_at",
         "plan_settings", "light_theme", "onboarding_complete"
     )
 

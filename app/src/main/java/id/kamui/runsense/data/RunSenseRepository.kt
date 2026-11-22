@@ -52,11 +52,28 @@ class RunSenseRepository(context: Context) {
     }
 
     fun activities(): List<ActivityRecord> = objects("activities").mapNotNull { o ->
-        try { ActivityRecord(o.getString("id"), o.getLong("startedAt"), o.getString("type"), o.getDouble("durationMin"), o.getDouble("distanceKm"), o.optInt("averageHr"), o.optDouble("externalLoad"), o.optBoolean("quality"), o.optInt("rpe"), o.optString("feel"), o.optInt("pain")) } catch (_: Exception) { null }
+        val id = o.optString("id").trim()
+        val startedAt = o.optLong("startedAt", 0L)
+        val duration = o.optDouble("durationMin", Double.NaN)
+        val distance = o.optDouble("distanceKm", Double.NaN)
+        val load = o.optDouble("externalLoad", 0.0)
+        if (id.isBlank() || startedAt <= 0L || !duration.isFinite() || duration <= 0.0 ||
+            !distance.isFinite() || distance < 0.0) return@mapNotNull null
+        ActivityRecord(id, startedAt, o.optString("type", "run").ifBlank { "run" }, duration, distance,
+            o.optInt("averageHr").coerceIn(0, 250), load.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0,
+            o.optBoolean("quality"), o.optInt("rpe").coerceIn(0, 10), o.optString("feel"), o.optInt("pain").coerceIn(0, 10))
     }.sortedByDescending { it.startedAt }
 
     fun strength(): List<StrengthRecord> = objects("strength").mapNotNull { o ->
-        try { StrengthRecord(o.getString("id"), o.getString("date"), o.getString("category"), o.optInt("durationMin"), o.optInt("level"), o.optBoolean("completed"), o.optString("exercise"), o.optInt("sets"), o.optInt("reps"), o.optDouble("resistanceKg")) } catch (_: Exception) { null }
+        val id = o.optString("id").trim()
+        val date = o.optString("date")
+        val duration = o.optInt("durationMin", -1)
+        val resistance = o.optDouble("resistanceKg", 0.0)
+        if (id.isBlank() || !runCatching { java.time.LocalDate.parse(date) }.isSuccess ||
+            duration !in 0..720 || !resistance.isFinite() || resistance < 0.0) return@mapNotNull null
+        StrengthRecord(id, date, o.optString("category", "full"), duration, o.optInt("level").coerceIn(0, 10),
+            o.optBoolean("completed"), o.optString("exercise"), o.optInt("sets").coerceAtLeast(0),
+            o.optInt("reps").coerceAtLeast(0), resistance)
     }.sortedByDescending { it.date }
 
     private fun validWellnessDate(raw: String): Boolean {
@@ -67,15 +84,30 @@ class RunSenseRepository(context: Context) {
     private fun finitePositive(o: JSONObject, key: String): Double? =
         if (!o.has(key) || o.isNull(key)) null else o.optDouble(key, Double.NaN).takeIf { it.isFinite() && it > 0.0 }
 
-    fun wellness(): List<WellnessRecord> = objects("wellness").mapNotNull { o ->
-        val date = o.optString("date").trim()
-        if (!validWellnessDate(date)) return@mapNotNull null
-        val rhr = o.optInt("restingHr", 0).takeIf { it in 25..250 } ?: 0
-        val sleep = finitePositive(o, "sleepHours")
-        val hrv = finitePositive(o, "hrv")
-        if (rhr == 0 && sleep == null && hrv == null) return@mapNotNull null
-        WellnessRecord(date, rhr, sleep ?: 0.0, hrv ?: 0.0)
-    }.sortedBy { it.date }
+    fun wellness(): List<WellnessRecord> {
+        val raw = readArray("wellness")
+        val cleaned = JSONArray()
+        val records = mutableListOf<WellnessRecord>()
+        var changed = false
+        for (i in 0 until raw.length()) {
+            val source = raw.optJSONObject(i)
+            if (source == null) { changed = true; continue }
+            val date = source.optString("date").trim()
+            if (!validWellnessDate(date)) { changed = true; continue }
+            val rhr = source.optInt("restingHr", 0).takeIf { it in 25..250 } ?: 0
+            val sleep = finitePositive(source, "sleepHours")
+            val hrv = finitePositive(source, "hrv")
+            if (rhr == 0 && sleep == null && hrv == null) { changed = true; continue }
+            val item = JSONObject(source.toString())
+            if (rhr == 0 && item.has("restingHr")) { item.remove("restingHr"); changed = true }
+            if (sleep == null && item.has("sleepHours")) { item.remove("sleepHours"); changed = true }
+            if (hrv == null && item.has("hrv")) { item.remove("hrv"); changed = true }
+            cleaned.put(item)
+            records += WellnessRecord(date, rhr, sleep ?: 0.0, hrv ?: 0.0)
+        }
+        if (changed || cleaned.length() != raw.length()) writeArray("wellness", cleaned)
+        return records.sortedBy { it.date }
+    }
 
     fun profile(): AthleteProfile = AthleteProfile(
         prefs.getInt("rhr", 63), prefs.getInt("maxHr", 185), prefs.getInt("lthr", 160),
@@ -98,12 +130,22 @@ class RunSenseRepository(context: Context) {
     }
     fun currentWeather(): WeatherSnapshot? {
         val raw = prefs.getString("current_weather", null) ?: return null
-        return runCatching {
+        val weather = runCatching {
             val o = JSONObject(raw)
-            WeatherSnapshot(o.getDouble("temperatureC"), o.getDouble("apparentC"), o.getInt("humidityPct"),
-                o.getDouble("windKmh"), o.getDouble("precipitationMm"), o.getInt("weatherCode"),
-                o.getLong("fetchedAt"), o.getDouble("latitude"), o.getDouble("longitude"))
+            val temperature = o.optDouble("temperatureC", Double.NaN)
+            val apparent = o.optDouble("apparentC", temperature)
+            val wind = o.optDouble("windKmh", Double.NaN)
+            val precipitation = o.optDouble("precipitationMm", Double.NaN)
+            val latitude = o.optDouble("latitude", Double.NaN)
+            val longitude = o.optDouble("longitude", Double.NaN)
+            val fetchedAt = o.optLong("fetchedAt", 0L)
+            require(listOf(temperature, apparent, wind, precipitation, latitude, longitude).all { it.isFinite() })
+            require(wind >= 0.0 && precipitation >= 0.0 && fetchedAt > 0L)
+            WeatherSnapshot(temperature, apparent, o.optInt("humidityPct").coerceIn(0, 100),
+                wind, precipitation, o.optInt("weatherCode"), fetchedAt, latitude, longitude)
         }.getOrNull()
+        if (weather == null) prefs.edit().remove("current_weather").apply()
+        return weather
     }
     fun fetchCurrentWeather(): WeatherSnapshot {
         val manager = appContext.getSystemService(Context.LOCATION_SERVICE) as LocationManager
@@ -195,9 +237,19 @@ class RunSenseRepository(context: Context) {
     fun parqUpdatedAt(): Long = prefs.getLong("parq_updated_at", 0L)
 
     fun addWellness(rhr: Int, sleep: Double, hrv: Double) {
-        val date = dateFormat.format(Date()); val old = readArray("wellness"); val next = JSONArray()
-        for (i in 0 until old.length()) { val o = old.optJSONObject(i) ?: continue; if (o.optString("date") != date) next.put(o) }
-        next.put(JSONObject().put("date", date).put("restingHr", rhr).put("sleepHours", sleep).put("hrv", hrv))
+        val item = JSONObject().put("date", dateFormat.format(Date()))
+        if (rhr in 25..250) item.put("restingHr", rhr)
+        if (sleep.isFinite() && sleep > 0.0) item.put("sleepHours", sleep)
+        if (hrv.isFinite() && hrv > 0.0) item.put("hrv", hrv)
+        if (item.length() == 1) return
+        val date = item.optString("date")
+        val old = readArray("wellness")
+        val next = JSONArray()
+        for (i in 0 until old.length()) {
+            val o = old.optJSONObject(i) ?: continue
+            if (o.optString("date") != date) next.put(o)
+        }
+        next.put(item)
         writeArray("wellness", next)
     }
 

@@ -716,8 +716,12 @@ private fun HeartRateZoneChart(activities: List<ActivityRecord>, snapshot: Snaps
 private fun SessionReviewCard(item: ActivityItem, snapshot: Snapshot?, repository: RunSenseRepository) {
     val review = remember(item.act, snapshot) { snapshot?.reviewRun(item.act) }
     val streamKey = item.act.icuId ?: item.act.lid
-    val rawPoints = remember(item.act.lid, snapshot) { repository.streamPoints(streamKey) }
-    val cadence = remember(rawPoints) { CadenceAnalyzer.analyze(rawPoints, 5) }
+    val rawPoints by produceState<List<RawStreamPoint>>(initialValue = emptyList(), key1 = streamKey, key2 = snapshot) {
+        value = withContext(Dispatchers.IO) { repository.streamPoints(streamKey) }
+    }
+    val cadence by produceState(initialValue = CadenceAnalyzer.analyze(emptyList(), 5), key1 = rawPoints) {
+        value = withContext(Dispatchers.Default) { CadenceAnalyzer.analyze(rawPoints, 5) }
+    }
     Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(item.why.ifBlank { "Analisa sesi tersedia di bawah." }, color = White, fontSize = 12.sp, lineHeight = 17.sp)

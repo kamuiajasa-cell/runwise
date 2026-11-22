@@ -60,6 +60,7 @@ fun nativeRunSenseAnalysis(
     val p = (baseSnapshot?.profile ?: Profile()).copy(
         rest = profile.restingHr.toDouble(),
         max = profile.maxHr.toDouble(),
+        age = profile.ageYears,
         restManual = true,
         lthrC = profile.thresholdHr,
         ltpC = profile.thresholdPaceSecPerKm,

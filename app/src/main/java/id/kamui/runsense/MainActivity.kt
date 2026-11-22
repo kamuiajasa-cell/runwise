@@ -1096,10 +1096,8 @@ private fun HeartRateZoneChart(activities: List<ActivityRecord>, snapshot: Snaps
 private fun SessionReviewCard(item: ActivityItem, snapshot: Snapshot?, repository: RunSenseRepository) {
     val review = remember(item.act, snapshot) { snapshot?.reviewRun(item.act) }
     val streamKey = item.act.icuId ?: item.act.lid
-    val hasStream = snapshot?.streams?.containsKey(streamKey) == true
     val rawPoints = remember(item.act.lid, snapshot) { repository.streamPoints(streamKey) }
     val cadence = remember(rawPoints) { CadenceAnalyzer.analyze(rawPoints, 5) }
-    var cadenceExpanded by remember(item.act.lid) { mutableStateOf(false) }
     Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(review?.summary?.ifBlank { item.why } ?: item.why, color = White, fontSize = 12.sp, lineHeight = 17.sp)
@@ -1110,19 +1108,11 @@ private fun SessionReviewCard(item: ActivityItem, snapshot: Snapshot?, repositor
                     }
                 }
             }
-            if (rawPoints.isNotEmpty()) {
-                Divider(color = Color.White.copy(alpha = .08f))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column {
-                        Text("Kadens per 5 detik", color = Lime, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Text("${cadence.windows.size} segmen · ${cadence.runningWindows} lari · ${cadence.walkingWindows} jalan", color = Muted, fontSize = 11.sp)
-                    }
-                    TextButton(onClick = { cadenceExpanded = !cadenceExpanded }) {
-                        Text(if (cadenceExpanded) "Tutup" else "Lihat")
-                    }
-                }
-                Text("Rata-rata kadens saat lari: ${cadence.averageRunningCadence?.let { "$it spm" } ?: "—"}", color = White, fontSize = 11.sp)
-                if (cadenceExpanded) {
+            DisclosureSection(
+                "Kadens per 5 detik",
+                if (rawPoints.isNotEmpty()) "${cadence.windows.size} segmen · ${cadence.runningWindows} lari · ${cadence.walkingWindows} jalan" else "Stream sesi belum tersedia"
+            ) {
+                if (rawPoints.isNotEmpty()) {
                     cadence.windows.forEach { w ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(CadenceAnalyzer.formatTime(w.startSec), color = Muted, fontSize = 11.sp)
@@ -1131,14 +1121,13 @@ private fun SessionReviewCard(item: ActivityItem, snapshot: Snapshot?, repositor
                             Text(CadenceAnalyzer.formatPace(w.paceSecPerKm), color = Muted, fontSize = 11.sp)
                         }
                     }
+                } else {
+                    Text("Data stream sesi belum tersedia. Coba sinkronkan ulang jika sesi ini belum memiliki stream.", color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
                 }
-            } else {
-                Text("Stream sesi belum tersedia. Data stream diambil otomatis saat sinkronisasi; coba sinkronkan ulang jika sesi ini belum memiliki stream.", color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
             }
         }
     }
 }
-
 @Composable
 private fun WeeklyReviewCard(review: WeeklyReview) {
     val ratio = if (review.targetKm > 0) (review.actualKm / review.targetKm).coerceIn(0.0, 1.0).toFloat() else 0f

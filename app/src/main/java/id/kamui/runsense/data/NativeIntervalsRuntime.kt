@@ -146,7 +146,7 @@ class NativeIntervalsRuntime(context: Context) {
             val valid = points.filter { it.heartRate > 40.0 && it.speedMps >= 0.5 && it.speedMps <= 8.0 }
             if (valid.size < 60) continue
             val hr = valid.map { it.heartRate }.average()
-            val pace = valid.map { 1000.0 / it.speedMps / 60.0 }.average()
+            val pace = 1000.0 / valid.map { it.speedMps }.average() / 60.0
             if (!hr.isFinite() || !pace.isFinite()) continue
             val key = clK(context, personal)
             if (key.isBlank()) continue

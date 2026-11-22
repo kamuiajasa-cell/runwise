@@ -13,7 +13,7 @@ fun isDurationBasedStrengthExercise(exercise: String): Boolean {
 }
 
 fun inferStrengthDoseType(exercise: String, sets: Int, reps: Int): String =
-    if (isDurationBasedStrengthExercise(exercise) || sets <= 0 || reps <= 0) "duration" else "reps"
+    if (isDurationBasedStrengthExercise(exercise)) "duration" else if (exercise.isNotBlank() || (sets > 0 && reps > 0)) "reps" else "duration"
 
 data class StrengthSuggestion(
     val level: Int,

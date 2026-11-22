@@ -44,8 +44,6 @@ fun SessionDetailDialog(
     onCheckin: () -> Unit,
     analysis: @Composable () -> Unit
 ) {
-    val surface = MaterialTheme.colorScheme.surface
-    val foreground = MaterialTheme.colorScheme.onSurface
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val accent = MaterialTheme.colorScheme.primary
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -112,7 +110,7 @@ private fun SessionMetric(label: String, value: String, modifier: Modifier = Mod
         modifier = modifier
     ) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             Text(value, color = MaterialTheme.colorScheme.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
         }
     }

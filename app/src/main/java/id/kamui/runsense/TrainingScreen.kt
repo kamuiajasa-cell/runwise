@@ -205,9 +205,10 @@ internal fun TrainingScreen(
             items(displayedStrength, key = { it.id }) { item ->
                 InfoCard(
                     strengthLabel(item.category),
-                    "${RunSenseFormat.strengthDate(item.date)} · ${RunSenseFormat.durationWholeMinutes(item.durationMin)} · level ${item.level}" +
-                        (if (item.exercise.isNotBlank()) " · ${item.exercise}: ${item.sets}×${item.reps}" +
-                            (if (item.resistanceKg > 0) " @ ${RunSenseFormat.kg(item.resistanceKg)}" else "") else ""),
+                    "${RunSenseFormat.strengthDate(item.date)} · level ${item.level}" +
+                        (if (item.exercise.isNotBlank()) " · ${item.exercise}: " + if (item.doseType == "duration") "${RunSenseFormat.durationWholeMinutes(item.durationMin)} menit" else "${item.sets}×${item.reps}" else "") +
+                        (if (item.doseType == "duration" && item.exercise.isBlank()) " · ${RunSenseFormat.durationWholeMinutes(item.durationMin)} menit" else "") +
+                        (if (item.resistanceKg > 0) " @ ${RunSenseFormat.kg(item.resistanceKg)}" else ""),
                     if (item.completed) "SELESAI" else "SKIP"
                 )
             }

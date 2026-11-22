@@ -248,8 +248,7 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
         } else weatherMessage = "Izin lokasi ditolak. Cuaca belum dapat diperbarui."
     }
     fun refreshWeather() {
-        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         if (granted) {
             scope.launch {
                 weatherMessage = "Memuat cuaca dari lokasi perangkat…"
@@ -261,7 +260,7 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
                     weatherMessage = e.message ?: "Cuaca belum tersedia."
                 }
             }
-        } else weatherPermission.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
+        } else weatherPermission.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION))
     }
     LaunchedEffect(Unit) {
         val permitted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||

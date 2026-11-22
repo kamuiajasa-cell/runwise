@@ -29,7 +29,11 @@ class RunSenseRepository(context: Context) {
             runCatching { streamFile(prefix, id).writeText(raw, Charsets.UTF_8) }
         }
         prefs.edit().putBoolean("streams_file_migration_v1", true).apply()
-        if (legacy.isNotEmpty()) prefs.edit().remove(*legacy.keys.toTypedArray()).apply()
+        if (legacy.isNotEmpty()) {
+            val editor = prefs.edit()
+            legacy.keys.forEach { editor.remove(it) }
+            editor.apply()
+        }
         pruneStreams()
     }
     private fun pruneStreams() {

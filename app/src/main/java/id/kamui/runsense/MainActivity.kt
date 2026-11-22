@@ -393,7 +393,7 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
         if (showActivity) ActivityDialog(onDismiss = { showActivity = false }, onSave = { type, duration, distance, hr, load, quality, rpe, feel, pain ->
             repository.addActivity(type, duration, distance, hr, load, quality, rpe, feel, pain); showActivity = false; changed()
         })
-        if (showStrength) StrengthDialog(onDismiss = { showStrength = false }, onSave = { category, duration, level, done, exercise, sets, reps, load ->
+        if (showStrength) StrengthDialog(history = strength, onDismiss = { showStrength = false }, onSave = { category, duration, level, done, exercise, sets, reps, load ->
             repository.addStrength(category, duration, level, done, exercise, sets, reps, load); showStrength = false; changed()
         })
         if (showStrengthTarget) StrengthTargetDialog(strengthTarget, onDismiss = { showStrengthTarget = false }, onSave = { days -> repository.saveWeeklyStrengthTarget(days); showStrengthTarget = false; changed() })
@@ -1126,7 +1126,7 @@ internal fun SessionCheckinDialog(
 }
 
 @Composable
-internal fun StrengthDialog(onDismiss: () -> Unit, onSave: (String, Int, Int, Boolean, String, Int, Int, Double) -> Unit) {
+internal fun StrengthDialog(history: List<StrengthRecord>, onDismiss: () -> Unit, onSave: (String, Int, Int, Boolean, String, Int, Int, Double) -> Unit) {
     var category by remember { mutableStateOf("leg") }
     var exercise by remember { mutableStateOf("Squat") }
     var duration by remember { mutableStateOf("20") }
@@ -1142,6 +1142,13 @@ internal fun StrengthDialog(onDismiss: () -> Unit, onSave: (String, Int, Int, Bo
         else -> listOf("A-skip", "High knees", "Butt kicks", "Drill teknik")
     }
     if (exercise !in exercises) exercise = exercises.first()
+    val suggestion = TrainingEngine.suggestStrength(exercise, history)
+    LaunchedEffect(exercise, history) {
+        level = suggestion.level.toString()
+        sets = suggestion.sets.toString()
+        reps = suggestion.reps.toString()
+        load = suggestion.resistanceKg.toString()
+    }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Catat strength") },
         text = { Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Kelompok otot", color = Muted)
@@ -1150,6 +1157,7 @@ internal fun StrengthDialog(onDismiss: () -> Unit, onSave: (String, Int, Int, Bo
             }
             Text("Gerakan", color = Muted)
             exercises.forEach { name -> FilterChip(exercise == name, { exercise = name }, label = { Text(name) }) }
+            Text("Saran progresi: ${suggestion.note}", color = Lime, fontSize = 11.sp, lineHeight = 15.sp)
             NumberField("Durasi (menit)", duration) { duration = it }
             NumberField("Set", sets) { sets = it }
             NumberField("Repetisi per set", reps) { reps = it }

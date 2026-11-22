@@ -363,7 +363,7 @@ private fun HomeScreen(activities: List<ActivityRecord>, summary: TrainingSummar
         item { SectionKicker("LATIHANMU", "01") }
         item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             MetricCard("BEBAN 7 HARI", fmt(summary.acuteLoad), Modifier.weight(1f))
-            MetricCard("ACWR", summary.acwr?.let { "%.2f".format(Locale.US, it) } ?: "—", Modifier.weight(1f))
+            MetricCard("ACWR", summary.acwr?.let { RunSenseFormat.decimal(it, 2) } ?: "—", Modifier.weight(1f))
             MetricCard("STRENGTH 48J", RunSenseFormat.decimal(summary.strengthLoad48h, 1), Modifier.weight(1f))
         } }
         item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -409,7 +409,7 @@ private fun WeeklyPlanHomeCard(snapshot: Snapshot?, settings: com.runnow.domain.
                         Column(Modifier.weight(1f).background(Ink, RoundedCornerShape(9.dp)).padding(vertical = 8.dp, horizontal = 2.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(days[PLAN_DAYS.indexOf(day)], color = Muted, fontSize = 11.sp)
                             Text(when (plan?.t) { "easy" -> "E"; "quality" -> "Q"; "long" -> "L"; "rest" -> "R"; else -> if (plan == null) "—" else "A" }, color = if (plan == null || plan.t == "rest") Muted else Lime, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            Text(if (plan == null || plan.km <= 0) " " else "%.1f".format(Locale.US, plan.km), color = Muted, fontSize = 11.sp)
+                            Text(if (plan == null) " " else RunSenseFormat.decimal(plan.km, 1), color = Muted, fontSize = 11.sp)
                         }
                     }
                 }
@@ -719,7 +719,7 @@ private fun ProgressScreen(
         add("Sesi lari" to validRuns.size.toString())
         add("Minggu berlatih" to "$activeWeeks dari ${completedWeeks.size} minggu selesai")
         add("Jarak mingguan awal → akhir" to if (firstVolume != null && lastVolume != null) "${firstVolume.toInt()} → ${lastVolume.toInt()} km" else "Belum cukup data")
-        if (ctl.size >= 7) add("Kebugaran (CTL)" to "${ctl.first().ctl?.let { "%.1f".format(Locale.US, it) }} → ${ctl.last().ctl?.let { "%.1f".format(Locale.US, it) }}")
+        if (ctl.size >= 7) add("Kebugaran (CTL)" to "${ctl.first().ctl?.let { RunSenseFormat.decimal(it, 1) } ?: "—"} → ${ctl.last().ctl?.let { RunSenseFormat.decimal(it, 1) } ?: "—"}")
         val longestGap = validRuns.zipWithNext().maxOfOrNull { (a, b) -> (b.startedAt - a.startedAt) / dayMs }
         if (longestGap != null) add("Jeda antar lari terlama" to "${longestGap.roundToInt()} hari")
     }
@@ -766,9 +766,9 @@ private fun ProgressScreen(
     val durabilityRows = buildList {
         add("Stream lari panjang valid" to "${durability.size} · minimal 3")
         if (durability.isNotEmpty()) {
-            add("Pace drift median" to "${median(durability.map { it.paceDrift })?.let { "%+.1f%%".format(Locale.US, it) }}")
+            add("Pace drift median" to (median(durability.map { it.paceDrift })?.takeIf { it.isFinite() }?.let { "%+.1f%%".format(Locale.US, it) } ?: "—"))
             median(durability.mapNotNull { it.hrDrift })?.let { add("Perubahan HR median" to "${it.roundToInt()} bpm") }
-            if (effDrop != null) add("Penurunan efisiensi" to "${ "%.1f%%".format(Locale.US, effDrop) }")
+            if (effDrop != null && effDrop.isFinite()) add("Penurunan efisiensi" to "%.1f%%".format(Locale.US, effDrop))
         }
     }
 
@@ -819,7 +819,7 @@ private fun ProgressScreen(
     val dateFmt = java.time.format.DateTimeFormatter.ofPattern(if (rangeWeeks >= 26) "d MMM yyyy" else "d MMM", Locale("id", "ID"))
 
     Page(modifier) {
-        PageHero("PERFORMANCE INTELLIGENCE", "See how far", "you've grown.", "Lima sisi dinilai terpisah, tanpa skor gabungan. Kesimpulan mengikuti kecukupan data.")
+        PageHero("ANALISIS PERFORMA", "See how far", "you've grown.", "Lima sisi dinilai terpisah, tanpa skor gabungan. Kesimpulan mengikuti kecukupan data.")
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             listOf(8 to "8 minggu", 12 to "12 minggu", 26 to "6 bulan", 52 to "1 tahun").forEach { (value, label) ->
                 FilterChip(selected = rangeWeeks == value, onClick = { rangeWeeks = value }, label = { Text(label, fontSize = 11.sp) })
@@ -842,7 +842,7 @@ private fun ProgressScreen(
         ProgressDimensionCard("Kapasitas latihan", "Volume eksternal, minggu aktif, dan CTL bila tersedia", capacityStatus, confidence(validRuns.size, span), capacityRows, if (volumeDelta == null) "Riwayat minggu selesai belum cukup untuk membandingkan tren volume." else "Median jarak mingguan berubah ${ "%+.1f%%".format(Locale.US, volumeDelta) }. Minggu kosong tetap dihitung; kenaikan bukan target yang harus dipaksakan.")
         ProgressDimensionCard("Durability", "Kestabilan pace dan HR di sepertiga akhir lari panjang", durabilityStatus, confidence(durability.size, if (durability.size > 1) (durability.last().date - durability.first().date) / dayMs else 0.0), durabilityRows, if (durability.size < 3) "Butuh minimal 3 lari easy/long ≥5 km atau ≥40 menit dengan stream valid. Saat ini ${durability.size} sesi memenuhi syarat." else "Dibandingkan sepertiga tengah dengan sepertiga akhir. Elevasi, suhu, dan fueling belum dikontrol.")
         ProgressDimensionCard("Keberlanjutan", "Konsistensi latihan dan sinyal pemulihan dibanding baseline pribadi", sustainabilityStatus, if (latestWell.size >= 5 || recentStrength.size >= 3) "sedang" else "rendah", sustainabilityRows, if (recentRhr != null && baseRhr != null && recentRhr - baseRhr >= 3) "RHR terbaru ≥3 bpm di atas baseline. Ini sinyal untuk dipantau, bukan diagnosis." else "Data nyeri/cedera tidak tersedia lengkap; kartu ini tidak membuat diagnosis atau skor risiko cedera.")
-        SectionTitle("Strength development", "28 HARI")
+        SectionTitle("Perkembangan strength", "28 HARI")
         Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1136,11 +1136,11 @@ private fun WeeklyReviewCard(review: WeeklyReview) {
             Text("RINGKASAN PELAKSANAAN", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("%.1f km".format(Locale.US, review.actualKm), color = Lime, fontSize = 30.sp, fontWeight = FontWeight.Black)
+                    Text(RunSenseFormat.distanceKm(review.actualKm, aggregate = true), color = Lime, fontSize = 30.sp, fontWeight = FontWeight.Black)
                     Text("realisasi hingga hari ini", color = Muted, fontSize = 11.sp)
                 }
                 Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("%.1f km".format(Locale.US, review.targetKm), color = White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text(RunSenseFormat.distanceKm(review.targetKm, aggregate = true), color = White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                     Text("target yang jatuh tempo", color = Muted, fontSize = 11.sp)
                 }
             }
@@ -1155,10 +1155,10 @@ private fun WeeklyReviewCard(review: WeeklyReview) {
             Text(review.rationale, color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Target rencana berikutnya", color = Muted, fontSize = 11.sp)
-                Text("%.1f km".format(Locale.US, review.nextWeekTargetKm), color = Lime, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(RunSenseFormat.distanceKm(review.nextWeekTargetKm, aggregate = true), color = Lime, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
             if (review.extraKm > 0.2) {
-                Text("Ada %.1f km di luar target harian. Pastikan penambahan spontan ini tidak menumpuk dengan sesi berat.".format(Locale.US, review.extraKm), color = Color(0xFFFFC16B), fontSize = 11.sp, lineHeight = 15.sp)
+                Text("Ada ${RunSenseFormat.distanceKm(review.extraKm, aggregate = true)} di luar target harian. Pastikan penambahan spontan ini tidak menumpuk dengan sesi berat.", color = Color(0xFFFFC16B), fontSize = 11.sp, lineHeight = 15.sp)
             }
         }
     }
@@ -1194,7 +1194,7 @@ private fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSumma
                 InfoCard("Ambang laktat", "LTHR ${athlete.lthr ?: "—"} bpm · LT pace ${athlete.ltPace ?: "—"}", "AUTO / PROFIL")
                 InfoCard("Estimasi 5K", domainResult.goalEst.current, domainResult.goalEst.projection)
             }
-            MetricCard("ACWR", summary.acwr?.let { "%.2f".format(Locale.US, it) } ?: "Belum cukup data beban kronis", Modifier.fillMaxWidth())
+            MetricCard("ACWR", summary.acwr?.let { RunSenseFormat.decimal(it, 2) } ?: "Belum cukup data beban kronis", Modifier.fillMaxWidth())
         }
         val weekStart = java.time.LocalDate.now().let { it.minusDays((it.dayOfWeek.value - 1).toLong()) }
         val weekEnd = weekStart.plusDays(6)
@@ -1240,15 +1240,15 @@ private fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSumma
             SectionTitle("Usulan jadwal minggu depan", "ADAPTIF")
             weekReview.nextWeekSessions.forEach { suggested ->
                 val dayName = suggested.date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, Locale("id", "ID"))
-                val km = if (suggested.targetKm > 0) " · %.1f km".format(Locale.US, suggested.targetKm) else ""
+                val km = if (suggested.targetKm > 0) " · ${RunSenseFormat.distanceKm(suggested.targetKm, aggregate = true)}" else ""
                 InfoCard("$dayName · ${suggested.date.dayOfMonth}/${suggested.date.monthValue}", suggested.title + km,
                     if (suggested.title.startsWith("Easy ringan")) "DIUBAH COACH" else "DIPERTAHANKAN")
             }
             SectionTitle("Rincian per hari", "TARGET · AKTUAL")
             weekReview.days.forEach { day ->
                 val dayName = day.date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, Locale("id", "ID"))
-                val target = if (day.targetKm > 0) "target %.1f km".format(Locale.US, day.targetKm) else "target sesi"
-                val actual = if (day.actualKm > 0) "aktual %.1f km".format(Locale.US, day.actualKm) else "belum ada lari"
+                val target = if (day.targetKm > 0) "target ${RunSenseFormat.distanceKm(day.targetKm, aggregate = true)}" else "target sesi"
+                val actual = if (day.actualKm > 0) "aktual ${RunSenseFormat.distanceKm(day.actualKm, aggregate = true)}" else "belum ada lari"
                 val dayStrength = strength.filter { it.date == day.date.toString() && it.completed }
                 val extra = if (dayStrength.isNotEmpty()) " · strength: " + dayStrength.joinToString { strengthLabel(it.category) } else ""
                 InfoCard("$dayName · ${day.date.dayOfMonth}/${day.date.monthValue}", "${day.title} · $target · $actual$extra", day.status)
@@ -1327,7 +1327,7 @@ private fun SettingsScreen(
         SectionTitle("Rencana dan target race", "TERSIMPAN LOKAL")
         OutlinedButton(onClick = onPlanRace, modifier = Modifier.fillMaxWidth()) { Text("Atur rencana mingguan & race") }
         SectionTitle("Sinkronisasi Intervals.icu", if (hasIntervalsKey) "TERHUBUNG" else "BELUM TERHUBUNG")
-        Text(if (hasIntervalsKey) "API key tersimpan secara lokal. Sinkronkan aktivitas dan wellness dari akun Intervals.icu." else "Masukkan API key Intervals.icu untuk mengambil riwayat aktivitas dan wellness.")
+        Text(if (hasIntervalsKey) "API key tersimpan secara lokal. Sinkronkan aktivitas dan wellness dari akun Intervals.icu." else "Masukkan API key Intervals.icu untuk mengambil riwayat aktivitas dan wellness.", fontSize = 11.sp, lineHeight = 16.sp)
         Button(onClick = onApiKey, colors = ButtonDefaults.buttonColors(containerColor = Panel, contentColor = Lime)) { Text(if (hasIntervalsKey) "Ganti API key" else "Masukkan API key") }
         OutlinedButton(onClick = onSync, enabled = hasIntervalsKey && !syncBusy) { Text(if (syncBusy) "Menyinkronkan…" else "Sinkronkan sekarang") }
         if (syncMessage.isNotBlank()) Text(syncMessage, color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
@@ -1382,7 +1382,7 @@ private fun HomePageHero() {
     val date = SimpleDateFormat("EEEE, dd MMMM", Locale("id", "ID")).format(Date())
     Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("YOUR DAILY RUNNING BRIEF", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+            Text("RINGKASAN LATIHAN HARI INI", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
             Surface(color = Lime, shape = RoundedCornerShape(10.dp), modifier = Modifier.size(34.dp)) {
                 Box(contentAlignment = Alignment.Center) { Text("R", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black) }
             }
@@ -2043,5 +2043,5 @@ private fun NumberField(label: String, value: String, onValue: (String) -> Unit)
 }
 
 private fun strengthLabel(value: String) = when(value) { "hip" -> "Pinggul"; "calf" -> "Betis"; "leg" -> "Kaki"; "core" -> "Core"; "drill" -> "Drill"; else -> "Strength" }
-private fun fmt(value: Double) = value.roundToInt().toString()
+private fun fmt(value: Double) = RunSenseFormat.integer(value)
 private fun pace(minutesPerKm: Double): String = RunSenseFormat.pace(minutesPerKm)

@@ -647,7 +647,7 @@ private fun ProgressScreen(
         val delta = priorPace?.let { (currentPace - it) * 60.0 }
         if (delta != null) deltas += delta
         val change = delta?.let { " · " + when { it < -1 -> "−${abs(it).roundToInt()} dtk"; it > 1 -> "+${it.roundToInt()} dtk"; else -> "sama" } } ?: ""
-        performanceRows += label to "${paceText(currentPace)}/km · ${RunSenseFormat.distanceKm(current.distanceKm)}$change"
+        performanceRows += label to "${RunSenseFormat.pace(currentPace)}/km · ${RunSenseFormat.distanceKm(current.distanceKm)}$change"
     }
     val performanceStatus = median(deltas)?.let { if (it <= -5) "Membaik" else if (it >= 5) "Perlu perhatian" else "Stabil" } ?: "Belum cukup data"
     val performanceInsight = when {
@@ -715,7 +715,7 @@ private fun ProgressScreen(
         w.ctl?.let { it > 0 } == true && runCatching { java.time.LocalDate.parse(w.id) }.getOrNull()?.let { !it.isBefore(fromDate) && !it.isAfter(today) } == true
     }
     val capacityRows = buildList {
-        add("Jarak periode" to "${validRuns.sumOf { it.distanceKm }.let { "%.1f km".format(Locale.US, it) }}")
+        add("Jarak periode" to RunSenseFormat.distanceKm(validRuns.sumOf { it.distanceKm }, aggregate = true))
         add("Sesi lari" to validRuns.size.toString())
         add("Minggu berlatih" to "$activeWeeks dari ${completedWeeks.size} minggu selesai")
         add("Jarak mingguan awal → akhir" to if (firstVolume != null && lastVolume != null) "${firstVolume.toInt()} → ${lastVolume.toInt()} km" else "Belum cukup data")
@@ -866,7 +866,7 @@ private fun ProgressScreen(
                     color = Muted, fontSize = 11.sp
                 )
                 if (strengthExternalVolume > 0) {
-                    Text("Volume beban eksternal: ${"%.0f".format(Locale.US, strengthExternalVolume)} kg-rep", color = White, fontSize = 11.sp)
+                    Text("Volume beban eksternal: ${RunSenseFormat.decimal(strengthExternalVolume, 1)} kg-rep", color = White, fontSize = 11.sp)
                 }
             }
         }
@@ -880,7 +880,7 @@ private fun ProgressScreen(
                 InfoCard(
                     strengthLabel(category),
                     "${records.size} sesi · $sets set · $reps repetisi" +
-                        if (external > 0) " · ${"%.0f".format(Locale.US, external)} kg-rep" else "",
+                        if (external > 0) " · ${RunSenseFormat.decimal(external, 1)} kg-rep" else "",
                     "28 HARI"
                 )
             }
@@ -889,7 +889,7 @@ private fun ProgressScreen(
         weekly.forEach { (week, km, count) ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("${week.format(dateFmt)} · $count sesi", color = Muted, fontSize = 11.sp)
-                Text("%.1f km".format(Locale.US, km), color = White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(RunSenseFormat.distanceKm(km, aggregate = true), color = White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
             LinearProgressIndicator(progress = (km / (weekly.maxOfOrNull { it.second }?.coerceAtLeast(1.0) ?: 1.0)).toFloat().coerceIn(0f, 1f), modifier = Modifier.fillMaxWidth().height(5.dp), color = Lime.copy(alpha = .75f), trackColor = Color.White.copy(alpha = .08f))
         }
@@ -950,7 +950,7 @@ private fun WeeklyDistanceChart(activities: List<ActivityRecord>) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Jarak lari", color = White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                Text("%.1f km total".format(Locale.US, values.sum()), color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("${RunSenseFormat.distanceKm(values.sum(), aggregate = true)} total", color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
             Canvas(Modifier.fillMaxWidth().height(104.dp)) {
                 val slot = size.width / 7f
@@ -1333,7 +1333,7 @@ private fun SettingsScreen(
             OutlinedButton(onClick = onWatch, modifier = Modifier.weight(1f)) { Text("⌚ Jam") }
         }
         InfoCard("Profil detak jantung", "RHR ${profile.restingHr} · HRmax ${profile.maxHr} · LTHR ${profile.thresholdHr}", "EDIT")
-        InfoCard("Data tubuh", "TB ${if (profile.heightCm > 0) "${profile.heightCm} cm" else "belum diisi"} · BB ${if (profile.weightKg > 0) "${profile.weightKg} kg" else "belum diisi"}", "PROFIL")
+        InfoCard("Data tubuh", "TB ${if (profile.heightCm > 0) "${profile.heightCm} cm" else "belum diisi"} · BB ${if (profile.weightKg > 0) RunSenseFormat.kg(profile.weightKg) else "belum diisi"}", "PROFIL")
         Button(onClick = onProfile, colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = Ink)) { Text("Atur profil") }
         SectionTitle("Rencana dan target race", "TERSIMPAN LOKAL")
         OutlinedButton(onClick = onPlanRace, modifier = Modifier.fillMaxWidth()) { Text("Atur rencana mingguan & race") }
@@ -1470,8 +1470,8 @@ private fun WeatherCard(weather: WeatherSnapshot?, message: String, onRefresh: (
             if (weather == null) {
                 Text("Cuaca belum tersedia. Perbarui dengan lokasi perangkat untuk membaca suhu dan hujan.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
             } else {
-                Text("${"%.1f".format(Locale.US, weather.temperatureC)}°C", color = White, fontSize = 28.sp, fontWeight = FontWeight.Black)
-                Text("Terasa ${"%.1f".format(Locale.US, weather.apparentC)}°C · RH ${weather.humidityPct}% · angin ${"%.1f".format(Locale.US, weather.windKmh)} km/j · hujan ${"%.1f".format(Locale.US, weather.precipitationMm)} mm", color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
+                Text("${RunSenseFormat.decimal(weather.temperatureC, 1)}°C", color = White, fontSize = 28.sp, fontWeight = FontWeight.Black)
+                Text("Terasa ${RunSenseFormat.decimal(weather.apparentC, 1)}°C · RH ${weather.humidityPct}% · angin ${RunSenseFormat.decimal(weather.windKmh, 1)} km/j · hujan ${RunSenseFormat.decimal(weather.precipitationMm, 1)} mm", color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
                 if (weather.temperatureC >= 30.0) Text("Panas terdeteksi: turunkan tuntutan pace sekitar 6% dan gunakan HR/RPE sebagai panduan.", color = Color(0xFFFFC36A), fontSize = 11.sp, lineHeight = 15.sp)
                 Text("Open-Meteo · lokasi perangkat · ${SimpleDateFormat("HH:mm", Locale("id", "ID")).format(Date(weather.fetchedAt))}", color = Muted, fontSize = 11.sp)
             }
@@ -1587,7 +1587,7 @@ private fun ActivityCard(a: ActivityRecord, profile: AthleteProfile = AthletePro
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("${RunSenseFormat.activityType(a.type)} · $stamp", color = White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                Text("${RunSenseFormat.durationMinutes(a.durationMin)} · ${RunSenseFormat.distanceKm(a.distanceKm)} · HR ${if (a.averageHr > 0) a.averageHr else "—"}", color = Muted, fontSize = 11.sp)
+                Text("${RunSenseFormat.durationMinutes(a.durationMin)} · ${RunSenseFormat.distanceKm(a.distanceKm)} · HR ${RunSenseFormat.bpm(a.averageHr)}", color = Muted, fontSize = 11.sp)
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("TL ${TrainingEngine.activityLoad(a, profile).roundToInt()}", color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold)

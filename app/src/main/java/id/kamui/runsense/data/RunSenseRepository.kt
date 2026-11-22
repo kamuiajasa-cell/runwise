@@ -478,7 +478,11 @@ class RunSenseRepository(context: Context) {
             var added = 0
             val incoming = root.optJSONArray(key) ?: JSONArray()
             for (i in 0 until incoming.length()) {
-                val item = incoming.optJSONObject(i) ?: run { skipped++; continue }
+                val item = incoming.optJSONObject(i)
+                if (item == null) {
+                    skipped++
+                    continue
+                }
                 val id = identity(item)
                 if (id.isBlank() || !valid(item) || !seen.add(id)) {
                     skipped++
@@ -523,6 +527,7 @@ class RunSenseRepository(context: Context) {
                 is Int -> editor.putInt(key, value)
                 is Long -> editor.putLong(key, value)
                 is Double -> if (value.isFinite()) editor.putFloat(key, value.toFloat())
+                is Float -> if (value.isFinite()) editor.putFloat(key, value)
                 is String -> editor.putString(key, value)
             }
             settingsAdded++

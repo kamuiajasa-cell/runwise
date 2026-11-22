@@ -210,9 +210,12 @@ internal fun TrainingScreen(
         val domainItem = domainResult?.activities?.firstOrNull {
             it.act.icuId == activity.id || it.act.lid == activity.id || it.act.start == activity.startedAt
         }
-        val cadenceValue = remember(activity.id, snapshot) {
-            val points = domainItem?.let { repository.streamPoints(it.act.icuId ?: it.act.lid) }.orEmpty()
-            CadenceAnalyzer.analyze(points, 5).averageRunningCadence?.toString() ?: "—"
+        val cadenceValue by produceState("—", activity.id, snapshot) {
+            val points = withContext(Dispatchers.IO) {
+                domainItem?.let { repository.streamPoints(it.act.icuId ?: it.act.lid) }.orEmpty()
+            }
+            val result = withContext(Dispatchers.Default) { CadenceAnalyzer.analyze(points, 5) }
+            value = result.averageRunningCadence?.toString() ?: "—"
         }
         SessionDetailDialog(
             activity = activity,

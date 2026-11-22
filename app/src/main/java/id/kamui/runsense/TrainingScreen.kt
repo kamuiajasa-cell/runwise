@@ -150,7 +150,7 @@ internal fun TrainingScreen(
                         selected = filter == key,
                         onClick = { filter = key; visibleCount = 20 },
                         label = { Text(label, fontSize = 11.sp) },
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Lime, selectedLabelColor = Ink)
+                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Lime, selectedLabelColor = OnLime)
                     )
                 }
             }
@@ -178,7 +178,7 @@ internal fun TrainingScreen(
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onAdd, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = Ink)) { Text("＋ Aktivitas") }
+                Button(onClick = onAdd, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = OnLime)) { Text("＋ Aktivitas") }
                 OutlinedButton(onClick = onStrength, modifier = Modifier.weight(1f)) { Text("＋ Strength") }
             }
         }

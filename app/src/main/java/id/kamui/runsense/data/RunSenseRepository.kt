@@ -75,7 +75,7 @@ class RunSenseRepository(context: Context) {
             else inferStrengthDoseType(exercise, sets, reps)
         val duration = o.optInt("durationMin", 0)
         val resistance = o.optDouble("resistanceKg", 0.0)
-        val validDose = if (doseType == "duration") duration in 1..720 else sets in 1..30 && reps in 1..100
+        val validDose = !o.optBoolean("completed") || if (doseType == "duration") duration in 1..720 else sets in 1..30 && reps in 1..100
         if (id.isBlank() || !runCatching { java.time.LocalDate.parse(date) }.isSuccess ||
             !validDose || !resistance.isFinite() || resistance < 0.0) return@mapNotNull null
         StrengthRecord(id, date, o.optString("category", "full"), duration, o.optInt("level").coerceIn(0, 10),
@@ -240,7 +240,7 @@ class RunSenseRepository(context: Context) {
 
     fun addStrength(category: String, duration: Int, level: Int, completed: Boolean, exercise: String = "", sets: Int = 0, reps: Int = 0, resistanceKg: Double = 0.0) {
         val doseType = inferStrengthDoseType(exercise, sets, reps)
-        val validDose = if (doseType == "duration") duration in 1..720 else sets in 1..30 && reps in 1..100
+        val validDose = !completed || if (doseType == "duration") duration in 1..720 else sets in 1..30 && reps in 1..100
         if (!validDose) return
         val resistance = resistanceKg.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
         val a = readArray("strength")

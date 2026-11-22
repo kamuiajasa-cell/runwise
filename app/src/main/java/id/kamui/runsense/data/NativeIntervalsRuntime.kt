@@ -138,7 +138,7 @@ class NativeIntervalsRuntime(context: Context) {
         var streamSampleCount = 0
         for (activity in domain.data.acts) {
             if (activity.kind != com.runnow.domain.ActKind.RUN || activity.km < 2.0) continue
-            if (domain.data.snapshot(System.currentTimeMillis(), ZoneId.systemDefault()).detectType(activity, stage).type != "easy") continue
+            if (snapshot.detectType(activity, stage).type != "easy") continue
             val context = contexts[activity.start] ?: continue
             if (context.na || context.t == null) continue
             val id = activity.icuId ?: activity.lid

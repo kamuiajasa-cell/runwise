@@ -47,7 +47,7 @@ internal fun HomeScreen(
         }
         item { ReadinessCard(summary.readiness ?: domainResult?.athlete?.score, summary.recommendation) }
         item { WeeklyPlanHomeCard(snapshot, planSettings) }
-        item { HomeWeatherSummary(weather, onRefreshWeather) }
+        item { WeatherCard(weather, weatherMessage, onRefreshWeather) }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MetricCard("BEBAN 7 HARI", fmt(summary.acuteLoad), Modifier.weight(1f))

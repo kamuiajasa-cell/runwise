@@ -78,7 +78,7 @@ class RunSenseRepository(context: Context) {
         val validDose = !o.optBoolean("completed") || if (doseType == "duration") duration in 1..720 else sets in 1..30 && reps in 1..100
         if (id.isBlank() || !runCatching { java.time.LocalDate.parse(date) }.isSuccess ||
             !validDose || !resistance.isFinite() || resistance < 0.0) return@mapNotNull null
-        StrengthRecord(id, date, o.optString("category", "full"), duration, o.optInt("level").coerceIn(0, 10),
+        StrengthRecord(id, date, o.optString("category", "full"), if (doseType == "duration") duration else 0, o.optInt("level").coerceIn(0, 10),
             o.optBoolean("completed"), exercise, if (doseType == "reps") sets else 0,
             if (doseType == "reps") reps else 0, resistance, doseType)
     }.sortedByDescending { it.date }

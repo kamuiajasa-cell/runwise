@@ -435,125 +435,147 @@ private fun TrainingScreen(
     onCheckin: (ActivityRecord) -> Unit
 ) {
     var filter by remember { mutableStateOf("week") }
+    var mode by remember { mutableStateOf("run") }
     var selectedActivity by remember { mutableStateOf<ActivityRecord?>(null) }
+    var visibleCount by remember { mutableIntStateOf(20) }
     val today = java.time.LocalDate.now()
     val monday = today.minusDays((today.dayOfWeek.value - 1).toLong())
-    val visible = remember(activities, filter, today) {
+    fun inRange(date: java.time.LocalDate): Boolean = when (filter) {
+        "week" -> !date.isBefore(monday) && !date.isAfter(today)
+        "month" -> date.year == today.year && date.month == today.month && !date.isAfter(today)
+        else -> !date.isAfter(today)
+    }
+    val visibleRuns = remember(activities, filter, today) {
         activities.filter { activity ->
-            val date = java.time.Instant.ofEpochMilli(activity.startedAt)
-                .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-            when (filter) {
-                "week" -> !date.isBefore(monday)
-                "month" -> date.year == today.year && date.month == today.month
-                else -> true
-            }
+            (activity.type.equals("run", true) || activity.type.equals("walk", true)) &&
+                runCatching { java.time.Instant.ofEpochMilli(activity.startedAt).atZone(java.time.ZoneId.systemDefault()).toLocalDate() }.getOrNull()?.let(::inRange) == true
         }.sortedByDescending { it.startedAt }
     }
-    val totalKm = visible.filter { it.type.equals("run", true) || it.type.equals("walk", true) }.sumOf { it.distanceKm }
-    val totalMinutes = visible.filter { it.type.equals("run", true) || it.type.equals("walk", true) }.sumOf { it.durationMin }
-    val totalTl = visible.sumOf { TrainingEngine.activityLoad(it, profile) }
-    val seconds = (totalMinutes * 60).roundToInt()
-    val durationText = if (seconds >= 3600) "%d:%02d:%02d".format(seconds / 3600, (seconds % 3600) / 60, seconds % 60)
-        else "%d:%02d".format(seconds / 60, seconds % 60)
-    val dateFmt = java.time.format.DateTimeFormatter.ofPattern("d MMM", Locale("id", "ID"))
-    Page(modifier) {
-        PageHero("YOUR ACTIVITY LOG", "Every run", "has a story.", "Jejak latihan, ritme, dan konsistensimu.")
-        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            listOf("week" to "Minggu ini", "month" to "Bulan ini", "all" to "Semua").forEach { (key, label) ->
-                FilterChip(selected = filter == key, onClick = { filter = key }, label = { Text(label, fontSize = 10.sp) })
+    val visibleStrength = remember(strength, filter, today) {
+        strength.filter { item -> runCatching { java.time.LocalDate.parse(item.date) }.getOrNull()?.let(::inRange) == true }
+            .sortedByDescending { it.date }
+    }
+    val totalKm = visibleRuns.sumOf { it.distanceKm.takeIf { km -> km.isFinite() && km > 0.0 } ?: 0.0 }
+    val totalMinutes = visibleRuns.sumOf { it.durationMin.takeIf { min -> min.isFinite() && min > 0.0 } ?: 0.0 }
+    val displayedRuns = visibleRuns.take(visibleCount)
+    val groupedRuns = displayedRuns.groupBy { activity ->
+        java.time.Instant.ofEpochMilli(activity.startedAt).atZone(java.time.ZoneId.systemDefault())
+            .toLocalDate().with(java.time.DayOfWeek.MONDAY)
+    }.toSortedMap(compareByDescending { it })
+    val displayedStrength = visibleStrength.take(visibleCount)
+
+    LazyColumn(
+        modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item { PageHero("RIWAYAT LATIHAN", "Every session", "has a story.", "Jejak lari, jalan, dan strength dalam satu tempat.") }
+        item { RunSenseSegment(mode, listOf("run" to "Lari", "strength" to "Strength"), { mode = it; visibleCount = 20 }) }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("week" to "Minggu", "month" to "Bulan", "all" to "Semua").forEach { (key, label) ->
+                    FilterChip(
+                        selected = filter == key,
+                        onClick = { filter = key; visibleCount = 20 },
+                        label = { Text(label, fontSize = 11.sp) },
+                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Lime, selectedLabelColor = Ink)
+                    )
+                }
             }
         }
-        Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
-            Row(Modifier.fillMaxWidth().padding(vertical = 13.dp, horizontal = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                listOf(
-                    Triple(visible.size.toString(), "Sesi", Lime),
-                    Triple("%.1f".format(Locale.US, totalKm), "km", White),
-                    Triple(durationText, "Waktu", White),
-                    Triple(totalTl.roundToInt().toString(), "Total TL", Lime)
-                ).forEach { (value, label, color) ->
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(value, color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        Text(label, color = Muted, fontSize = 9.sp)
+        item {
+            Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 13.dp, horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    val values = if (mode == "run") listOf(
+                        Triple(visibleRuns.size.toString(), "Sesi", Lime),
+                        Triple(RunSenseFormat.distanceKm(totalKm, aggregate = true, withUnit = false), "km", White),
+                        Triple(RunSenseFormat.durationMinutes(totalMinutes), "Durasi", White)
+                    ) else listOf(
+                        Triple(visibleStrength.size.toString(), "Catatan", Lime),
+                        Triple(visibleStrength.count { it.completed }.toString(), "Selesai", White),
+                        Triple(RunSenseFormat.durationWholeMinutes(visibleStrength.sumOf { it.durationMin }), "Durasi", White)
+                    )
+                    values.forEach { (value, label, color) ->
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(value, color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(label, color = Muted, fontSize = 11.sp)
+                        }
                     }
                 }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(onClick = onAdd, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = Ink)) { Text("＋ Aktivitas") }
-            OutlinedButton(onClick = onStrength, modifier = Modifier.weight(1f)) { Text("＋ Strength") }
-        }
-        SectionTitle("Riwayat aktivitas", "${visible.size} SESI")
-        if (visible.isEmpty()) EmptyCard(if (filter == "week") "Belum ada aktivitas minggu ini." else if (filter == "month") "Belum ada aktivitas bulan ini." else "Belum ada aktivitas yang dicatat.")
-        else if (filter == "week") visible.forEach { ActivityCard(it, profile) { selectedActivity = it } }
-        else {
-            val grouped = visible.groupBy { activity ->
-                java.time.Instant.ofEpochMilli(activity.startedAt).atZone(java.time.ZoneId.systemDefault())
-                    .toLocalDate().with(java.time.DayOfWeek.MONDAY)
-            }.toSortedMap(compareByDescending { it })
-            grouped.forEach { (weekStart, items) ->
-                val km = items.sumOf { it.distanceKm }
-                Row(Modifier.fillMaxWidth().padding(top = 5.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        if (weekStart == monday) "Minggu ini" else if (weekStart == monday.minusWeeks(1)) "Minggu lalu" else "${weekStart.format(dateFmt)} – ${weekStart.plusDays(6).format(dateFmt)}",
-                        color = White, fontSize = 11.sp, fontWeight = FontWeight.Bold
-                    )
-                    Text("${items.size} sesi · %.1f km".format(Locale.US, km), color = Muted, fontSize = 10.sp)
-                }
-                items.forEach { ActivityCard(it, profile) { selectedActivity = it } }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onAdd, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = Ink)) { Text("＋ Aktivitas") }
+                OutlinedButton(onClick = onStrength, modifier = Modifier.weight(1f)) { Text("＋ Strength") }
             }
         }
-        SectionTitle("Riwayat strength", "${strength.size} CATATAN")
-        if (strength.isEmpty()) EmptyCard("Belum ada sesi strength tersimpan.")
-        strength.take(30).forEach { item ->
-            InfoCard(
-                strengthLabel(item.category),
-                "${item.date} · ${item.durationMin} menit · level ${item.level}" +
-                    (if (item.exercise.isNotBlank()) " · ${item.exercise}: ${item.sets}×${item.reps}" +
-                        (if (item.resistanceKg > 0) " @ ${item.resistanceKg} kg" else "") else ""),
-                if (item.completed) "SELESAI" else "SKIP"
-            )
+        if (mode == "run") {
+            item { SectionTitle("Riwayat lari & jalan", "\${visibleRuns.size} SESI") }
+            if (visibleRuns.isEmpty()) item { EmptyCard("Belum ada aktivitas pada periode ini.") }
+            groupedRuns.forEach { (weekStart, weekItems) ->
+                item(key = "week-$weekStart") {
+                    val km = weekItems.sumOf { it.distanceKm.takeIf { value -> value.isFinite() && value > 0.0 } ?: 0.0 }
+                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            when (weekStart) {
+                                monday -> "Minggu ini"
+                                monday.minusWeeks(1) -> "Minggu lalu"
+                                else -> "\${weekStart.format(java.time.format.DateTimeFormatter.ofPattern("d MMM", Locale("id", "ID")))} – \${weekStart.plusDays(6).format(java.time.format.DateTimeFormatter.ofPattern("d MMM", Locale("id", "ID")))}"
+                            },
+                            color = White, fontSize = 12.sp, fontWeight = FontWeight.Bold
+                        )
+                        Text("\${weekItems.size} sesi · \${RunSenseFormat.distanceKm(km, aggregate = true)}", color = Muted, fontSize = 11.sp)
+                    }
+                }
+                items(weekItems, key = { it.id }) { activity ->
+                    ActivityCard(activity, profile) { selectedActivity = activity }
+                }
+            }
+            if (visibleCount < visibleRuns.size) item {
+                OutlinedButton(onClick = { visibleCount += 20 }, modifier = Modifier.fillMaxWidth()) { Text("Tampilkan lebih banyak") }
+            }
+        } else {
+            item { SectionTitle("Riwayat strength", "\${visibleStrength.size} CATATAN") }
+            if (visibleStrength.isEmpty()) item { EmptyCard("Belum ada catatan strength pada periode ini.") }
+            items(displayedStrength, key = { it.id }) { item ->
+                InfoCard(
+                    strengthLabel(item.category),
+                    "\${RunSenseFormat.strengthDate(item.date)} · \${RunSenseFormat.durationWholeMinutes(item.durationMin)} · level \${item.level}" +
+                        (if (item.exercise.isNotBlank()) " · \${item.exercise}: \${item.sets}×\${item.reps}" +
+                            (if (item.resistanceKg > 0) " @ \${RunSenseFormat.kg(item.resistanceKg)}" else "") else ""),
+                    if (item.completed) "SELESAI" else "SKIP"
+                )
+            }
+            if (visibleCount < visibleStrength.size) item {
+                OutlinedButton(onClick = { visibleCount += 20 }, modifier = Modifier.fillMaxWidth()) { Text("Tampilkan lebih banyak") }
+            }
         }
     }
+
     selectedActivity?.let { activity ->
         val domainItem = domainResult?.activities?.firstOrNull {
             it.act.icuId == activity.id || it.act.lid == activity.id || it.act.start == activity.startedAt
         }
-        AlertDialog(
-            onDismissRequest = { selectedActivity = null },
-            title = { Text("Analisa lari", color = White, fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    Modifier.fillMaxWidth().heightIn(max = 540.dp).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    val stamp = SimpleDateFormat("EEEE, d MMM yyyy · HH:mm", Locale("id", "ID")).format(Date(activity.startedAt))
-                    Text(stamp, color = Muted, fontSize = 11.sp)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        MetricCard("JARAK", "${"%.2f".format(Locale.US, activity.distanceKm)} km", Modifier.weight(1f))
-                        Spacer(Modifier.width(7.dp))
-                        MetricCard("DURASI", "${activity.durationMin.toInt()} mnt", Modifier.weight(1f))
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        MetricCard("PACE", if (activity.distanceKm > 0) pace(activity.durationMin / activity.distanceKm) else "—", Modifier.weight(1f))
-                        MetricCard("AVG HR", if (activity.averageHr > 0) "${activity.averageHr} bpm" else "—", Modifier.weight(1f))
-                        MetricCard("TRAINING LOAD", TrainingEngine.activityLoad(activity, profile).roundToInt().toString(), Modifier.weight(1f))
-                    }
-                    if (activity.rpe > 0 || activity.feel.isNotBlank() || activity.pain > 0) {
-                        Text("Check-in: RPE ${activity.rpe}/10 · ${activity.feel.ifBlank { "belum diisi" }} · nyeri ${activity.pain}/10", color = Muted, fontSize = 11.sp)
-                    }
-                    if (activity.type.equals("run", true) && domainItem != null) {
-                        SessionReviewCard(domainItem, snapshot, repository)
-                    } else if (activity.type.equals("run", true)) {
-                        EmptyCard("Analisa sesi belum tersedia di data sinkron. Periksa koneksi sinkronisasi dan coba sinkronkan kembali.")
-                    } else {
-                        EmptyCard("Analisa stream hanya tersedia untuk aktivitas lari.")
-                    }
-                    TextButton(onClick = { onCheckin(activity); selectedActivity = null }) {
-                        Text("Isi / ubah check-in setelah lari", color = Lime)
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { selectedActivity = null }) { Text("Tutup") } }
+        val cadenceValue = remember(activity.id, snapshot) {
+            val points = domainItem?.let { repository.streamPoints(it.act.icuId ?: it.act.lid) }.orEmpty()
+            CadenceAnalyzer.analyze(points, 5).averageRunningCadence?.roundToInt()?.toString() ?: "—"
+        }
+        SessionDetailDialog(
+            activity = activity,
+            distance = RunSenseFormat.distanceKm(activity.distanceKm, withUnit = false),
+            duration = RunSenseFormat.durationMinutes(activity.durationMin),
+            pace = if (activity.distanceKm > 0.0) RunSenseFormat.pace(activity.durationMin / activity.distanceKm) else "—",
+            averageHr = RunSenseFormat.bpm(activity.averageHr),
+            load = RunSenseFormat.integer(TrainingEngine.activityLoad(activity, profile)),
+            cadence = cadenceValue,
+            onDismiss = { selectedActivity = null },
+            onCheckin = { onCheckin(activity); selectedActivity = null },
+            analysis = {
+                if (activity.type.equals("run", true) && domainItem != null) SessionReviewCard(domainItem, snapshot, repository)
+                else if (activity.type.equals("run", true)) EmptyCard("Analisa sesi belum tersedia di data sinkron. Periksa koneksi sinkronisasi dan coba sinkronkan kembali.")
+                else EmptyCard("Analisa stream hanya tersedia untuk aktivitas lari.")
+            }
         )
     }
 }

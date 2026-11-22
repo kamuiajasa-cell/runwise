@@ -22,16 +22,16 @@ class RunSenseRepository(context: Context) {
     private fun migrateLegacyStreamsOnce() {
         if (prefs.getBoolean("streams_file_migration_v1", false)) return
         val legacy = prefs.all.filterKeys { it.startsWith("icu_stream_") || it.startsWith("watch_stream_") }
+        val migratedKeys = mutableListOf<String>()
         legacy.forEach { (key, value) ->
             val raw = value as? String ?: return@forEach
             val prefix = if (key.startsWith("watch_stream_")) "watch" else "icu"
             val id = key.removePrefix("watch_stream_").removePrefix("icu_stream_")
-            runCatching { streamFile(prefix, id).writeText(raw, Charsets.UTF_8) }
+            if (runCatching { streamFile(prefix, id).writeText(raw, Charsets.UTF_8) }.isSuccess) migratedKeys += key
         }
-        prefs.edit().putBoolean("streams_file_migration_v1", true).apply()
-        if (legacy.isNotEmpty()) {
-            val editor = prefs.edit()
-            legacy.keys.forEach { editor.remove(it) }
+        if (migratedKeys.size == legacy.size) {
+            val editor = prefs.edit().putBoolean("streams_file_migration_v1", true)
+            migratedKeys.forEach { editor.remove(it) }
             editor.apply()
         }
         pruneStreams()

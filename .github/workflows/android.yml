@@ -47,6 +47,17 @@ jobs:
           name: RunSense-native-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+      - name: Report merged debug manifest permissions
+        shell: bash
+        run: |
+          MANIFEST="$(find app/build/intermediates -type f -name AndroidManifest.xml | grep -E '/merged_manifest(s)?/debug/' | head -n 1)"
+          if [ -z "$MANIFEST" ]; then
+            echo "Merged debug manifest not found; inspect AGP output layout."
+            find app/build/intermediates -type f -name AndroidManifest.xml | head -n 20
+          else
+            echo "Merged manifest: $MANIFEST"
+            grep -o 'android:name="android.permission.[^"]*"' "$MANIFEST" | sort -u
+          fi
       - name: Restore permanent release keystore
         if: env.HAS_RELEASE_SIGNING == 'true'
         env:

@@ -245,6 +245,24 @@ private fun ClimateCoachCard(insight: CoachClimateInsight?) {
         } else {
             Text("Perbandingan HR antar kondisi belum cukup kuat. Coach menunggu minimal 3 easy run pada kondisi sejuk dan kondisi pembanding dengan pace yang berdekatan.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
         }
-        Text("Catatan: prakiraan dan arsip Open-Meteo berbasis jam serta titik GPS ringkas, bukan pengukuran cuaca per detik. Data HR/pace per detik tetap dianalisis sebagai stream latihan; pencocokan cuaca ditafsirkan sebagai konteks segmen.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+        SectionTitle("Analisis stream per detik", "HR + KECEPATAN · KONTEKS CUACA LARI")
+        Text("Memakai ${insight.streamSamples} sampel detik dari stream aktivitas.", color = Muted, fontSize = 11.sp)
+        if (insight.streamByClimate.isEmpty()) {
+            Text("Belum ada stream HR dan kecepatan yang cukup pada easy run dengan konteks cuaca tersimpan.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+        } else {
+            insight.streamByClimate.forEach { (condition, stat) ->
+                val comparison = insight.streamComparison[condition]
+                val label = when (condition) {
+                    "sejuk" -> "Sejuk (baseline)"
+                    "hangat" -> "Hangat"
+                    "panas" -> "Panas"
+                    "panas & lembap" -> "Panas & lembap"
+                    else -> condition.replaceFirstChar { it.uppercase() }
+                }
+                val delta = comparison?.let { " · HR ${if (it.deltaHr >= 0) "+" else ""}${it.deltaHr} bpm vs sejuk" }.orEmpty()
+                InfoCard(label, "Median HR ${RunSenseFormat.decimal(stat.hrMedian, 0)} bpm · pace ${RunSenseFormat.decimal(stat.paceMedianMinKm, 2)} menit/km · ${stat.runs} lari · ${stat.samples} sampel$delta", "STREAM")
+            }
+        }
+        Text("Catatan metodologi: HR dan kecepatan dibaca dari sampel stream per detik. Cuaca historis Open-Meteo tersedia per jam dan dicocokkan melalui hingga 5 titik GPS per lari; karena itu sampel stream diberi konteks cuaca larinya, bukan diklaim memiliki sensor cuaca per detik. Perbandingan hanya easy run dan dibatasi pace median yang berdekatan.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
     }
 }

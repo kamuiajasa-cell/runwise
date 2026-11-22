@@ -70,7 +70,7 @@ class RunSenseRepository(context: Context) {
         val duration = o.optInt("durationMin", -1)
         val resistance = o.optDouble("resistanceKg", 0.0)
         if (id.isBlank() || !runCatching { java.time.LocalDate.parse(date) }.isSuccess ||
-            duration !in 0..720 || !resistance.isFinite() || resistance < 0.0) return@mapNotNull null
+            duration !in 1..720 || !resistance.isFinite() || resistance < 0.0) return@mapNotNull null
         StrengthRecord(id, date, o.optString("category", "full"), duration, o.optInt("level").coerceIn(0, 10),
             o.optBoolean("completed"), o.optString("exercise"), o.optInt("sets").coerceAtLeast(0),
             o.optInt("reps").coerceAtLeast(0), resistance)
@@ -230,7 +230,7 @@ class RunSenseRepository(context: Context) {
     }
 
     fun addStrength(category: String, duration: Int, level: Int, completed: Boolean, exercise: String = "", sets: Int = 0, reps: Int = 0, resistanceKg: Double = 0.0) {
-        if (duration !in 0..720) return
+        if (duration !in 1..720) return
         val resistance = resistanceKg.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
         val a = readArray("strength")
         a.put(JSONObject().put("id", UUID.randomUUID().toString()).put("date", dateFormat.format(Date()))

@@ -204,11 +204,15 @@ internal fun ProgressScreen(
 
     // 4. Durability: bandingkan sepertiga akhir dan tengah dari stream lari easy/long.
     data class DurSample(val date: Long, val paceDrift: Double, val hrDrift: Double?, val efficiencyDrop: Double?)
+    val durabilityIds = remember(validRuns) { validRuns.filter { it.distanceKm >= 5 || it.durationMin >= 40 }.take(60).map { it.id } }
+    val durabilityStreams by produceState<Map<String, List<RawStreamPoint>>>(emptyMap(), durabilityIds) {
+        value = withContext(Dispatchers.IO) { durabilityIds.associateWith { repository.streamPoints(it) } }
+    }
     val durability = validRuns.filter { it.distanceKm >= 5 || it.durationMin >= 40 }.mapNotNull { activity ->
         val act = actsById[activity.id] ?: return@mapNotNull null
         val kind = snapshot?.let { it.detectType(act, stage ?: it.stage()).type }
         if (kind !in setOf("easy", "long")) return@mapNotNull null
-        val points = repository.streamPoints(activity.id).filter { it.timeSec.isFinite() && it.speedMps > 0.5 }
+        val points = durabilityStreams[activity.id].orEmpty().filter { it.timeSec.isFinite() && it.speedMps > 0.5 }
         if (points.size < 30) return@mapNotNull null
         val start = points.first().timeSec
         val duration = points.last().timeSec - start

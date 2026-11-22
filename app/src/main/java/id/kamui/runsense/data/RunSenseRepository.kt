@@ -372,13 +372,17 @@ class RunSenseRepository(context: Context) {
         }
         var added = 0
         incomingActivities.forEach { a ->
-            val id = a.icuId ?: a.lid
+            val id = (a.icuId ?: a.lid).trim()
+            if (id.isBlank() || a.start <= 0L || !a.min.isFinite() || a.min <= 0.0 ||
+                !a.km.isFinite() || a.km < 0.0) return@forEach
             val existed = byId.containsKey(id)
             val item = byId[id] ?: JSONObject()
+            val hr = a.avgHr.takeIf { it.isFinite() && it in 0.0..250.0 }?.toInt() ?: 0
+            val load = a.load.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
             item.put("id", id).put("startedAt", a.start)
                 .put("type", when (a.kind) { com.runnow.domain.ActKind.RUN -> "run"; com.runnow.domain.ActKind.WALK -> "walk"; else -> "other" })
-                .put("durationMin", a.min).put("distanceKm", a.km).put("averageHr", a.avgHr.toInt())
-                .put("externalLoad", a.load).put("quality", false)
+                .put("durationMin", a.min).put("distanceKm", a.km).put("averageHr", hr)
+                .put("externalLoad", load).put("quality", false)
             byId[id] = item
             if (!existed) added++
         }
@@ -393,17 +397,25 @@ class RunSenseRepository(context: Context) {
             val date = item.optString("date")
             if (date.isNotBlank()) byDate[date] = item
         }
+        var wellnessAdded = 0
         incomingWellness.forEach { w ->
+            if (!validWellnessDate(w.id)) return@forEach
+            val rhr = w.restingHR.takeIf { it.isFinite() && it in 25.0..250.0 }?.toInt()
+            val sleep = w.sleepSecs.takeIf { it.isFinite() && it > 0.0 }?.div(3600.0)
+            val hrv = w.hrv.takeIf { it.isFinite() && it > 0.0 }
+            if (rhr == null && sleep == null && hrv == null) return@forEach
             val item = byDate[w.id] ?: JSONObject().put("date", w.id)
-            if (w.restingHR > 0) item.put("restingHr", w.restingHR.toInt())
-            if (w.sleepSecs > 0) item.put("sleepHours", w.sleepSecs / 3600.0)
-            if (w.hrv > 0) item.put("hrv", w.hrv)
+            if (rhr != null) item.put("restingHr", rhr)
+            if (sleep != null) item.put("sleepHours", sleep)
+            if (hrv != null) item.put("hrv", hrv)
             byDate[w.id] = item
+            wellnessAdded++
         }
         val mergedWell = JSONArray()
-        byDate.values.sortedBy { it.optString("date") }.takeLast(400).forEach { mergedWell.put(it) }
+        byDate.values.filter { validWellnessDate(it.optString("date")) }
+            .sortedBy { it.optString("date") }.takeLast(400).forEach { mergedWell.put(it) }
         writeArray("wellness", mergedWell)
-        return added to incomingWellness.size
+        return added to wellnessAdded
     }
 
     /** Merge Huawei WatchImport JSON into the same local history used by native Coach and Progress. */
@@ -432,6 +444,8 @@ class RunSenseRepository(context: Context) {
             if (row.length() < 10) continue
             val start = row.optLong(0)
             val id = row.optString(9).ifBlank { "hw$start" }
+            val duration = row.optDouble(2, Double.NaN)
+            if (start <= 0L || id.isBlank() || !duration.isFinite() || duration <= 0.0) continue
             if (row.optString(1) == "weight") {
                 val strengthItems = readArray("strength")
                 val exists = (0 until strengthItems.length()).any { strengthItems.optJSONObject(it)?.optString("id") == id }
@@ -446,15 +460,19 @@ class RunSenseRepository(context: Context) {
                 }
                 continue
             }
+            val distance = row.optDouble(3, Double.NaN)
+            if (!distance.isFinite() || distance < 0.0) continue
+            val hr = row.optDouble(4, 0.0).takeIf { it.isFinite() && it in 0.0..250.0 }?.toInt() ?: 0
+            val load = row.optDouble(8, 0.0).takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
             val existed = byId.containsKey(id)
             val item = byId[id] ?: JSONObject()
             item.put("id", id)
                 .put("startedAt", start)
                 .put("type", row.optString(1, "run"))
-                .put("durationMin", row.optDouble(2))
-                .put("distanceKm", row.optDouble(3))
-                .put("averageHr", row.optDouble(4).toInt())
-                .put("externalLoad", row.optDouble(8))
+                .put("durationMin", duration)
+                .put("distanceKm", distance)
+                .put("averageHr", hr)
+                .put("externalLoad", load)
                 .put("quality", false)
             byId[id] = item
             if (!existed) added++
@@ -471,20 +489,28 @@ class RunSenseRepository(context: Context) {
             if (date.isNotBlank()) byDate[date] = item
         }
         val incomingWell = root.optJSONArray("wellness") ?: JSONArray()
+        var wellnessAdded = 0
         for (i in 0 until incomingWell.length()) {
             val item = incomingWell.optJSONObject(i) ?: continue
             val date = item.optString("id")
-            if (date.isBlank()) continue
+            if (!validWellnessDate(date)) continue
+            val rhr = item.optDouble("restingHR", Double.NaN).takeIf { it.isFinite() && it in 25.0..250.0 }?.toInt()
+            val sleepSecs = item.optDouble("sleepSecs", Double.NaN)
+            val sleep = sleepSecs.takeIf { it.isFinite() && it > 0.0 }?.div(3600.0)
+            val hrv = item.optDouble("hrv", Double.NaN).takeIf { it.isFinite() && it > 0.0 }
+            if (rhr == null && sleep == null && hrv == null) continue
             val dest = byDate[date] ?: JSONObject().put("date", date)
-            if (item.has("restingHR")) dest.put("restingHr", item.optDouble("restingHR").toInt())
-            if (item.has("sleepSecs")) dest.put("sleepHours", item.optDouble("sleepSecs") / 3600.0)
-            if (item.has("hrv")) dest.put("hrv", item.optDouble("hrv"))
+            if (rhr != null) dest.put("restingHr", rhr)
+            if (sleep != null) dest.put("sleepHours", sleep)
+            if (hrv != null) dest.put("hrv", hrv)
             byDate[date] = dest
+            wellnessAdded++
         }
         val mergedWell = JSONArray()
-        byDate.values.sortedBy { it.optString("date") }.takeLast(400).forEach { mergedWell.put(it) }
+        byDate.values.filter { validWellnessDate(it.optString("date")) }
+            .sortedBy { it.optString("date") }.takeLast(400).forEach { mergedWell.put(it) }
         writeArray("wellness", mergedWell)
-        return added to incomingWell.length()
+        return added to wellnessAdded
     }
 
     data class BackupImportResult(val activitiesAdded: Int, val strengthAdded: Int, val wellnessAdded: Int, val settingsAdded: Int, val skipped: Int)

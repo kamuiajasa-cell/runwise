@@ -147,6 +147,32 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
     }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val exportBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) scope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        output.write(repository.exportBackupJson().toByteArray(Charsets.UTF_8))
+                    } ?: error("File backup tidak dapat dibuat.")
+                }
+            }.onSuccess { syncMessage = "Backup RunSense berhasil disimpan." }
+                .onFailure { syncMessage = "Backup gagal: ${it.message ?: "kesalahan penyimpanan"}" }
+        }
+    }
+    val importBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val raw = context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                        ?: error("File backup tidak dapat dibaca.")
+                    repository.importBackupJson(raw)
+                }
+            }.onSuccess { result ->
+                changed()
+                syncMessage = "Pulihkan backup: ${result.activitiesAdded} aktivitas, ${result.strengthAdded} strength, ${result.wellnessAdded} wellness, ${result.settingsAdded} pengaturan ditambahkan; ${result.skipped} dilewati (data lama dipertahankan)."
+            }.onFailure { syncMessage = "Pemulihan gagal: ${it.message ?: "file tidak valid"}" }
+        }
+    }
     val dashboard by produceState<NativeDashboard?>(initialValue = null, key1 = revision) {
         value = withContext(Dispatchers.Default) {
             val profile = repository.profile()
@@ -272,6 +298,8 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
                     strengthTarget = strengthTarget, parqAnswers = parqAnswers,
                     onStrengthTarget = { showStrengthTarget = true }, onParq = { showParq = true },
                     onApiKey = { showApiKey = true },
+                    onBackupExport = { exportBackup.launch("RunSense-backup-${java.time.LocalDate.now()}.json") },
+                    onBackupImport = { importBackup.launch(arrayOf("application/json", "text/json", "*/*")) },
                     onSync = {
                         scope.launch {
                             syncBusy = true
@@ -1352,7 +1380,8 @@ private fun SettingsScreen(
     profile: AthleteProfile, wellness: List<WellnessRecord>, modifier: Modifier,
     strengthTarget: Int, parqAnswers: List<Boolean?>, onStrengthTarget: () -> Unit, onParq: () -> Unit,
     hasIntervalsKey: Boolean, syncBusy: Boolean, syncMessage: String,
-    onProfile: () -> Unit, onWellness: () -> Unit, onPlanRace: () -> Unit, onApiKey: () -> Unit, onSync: () -> Unit,
+    onProfile: () -> Unit, onWellness: () -> Unit, onPlanRace: () -> Unit, onApiKey: () -> Unit,
+    onBackupExport: () -> Unit, onBackupImport: () -> Unit, onSync: () -> Unit,
     onCoach: () -> Unit, onWatch: () -> Unit,
     runWalk: RunWalkSettings, lightTheme: Boolean, coachingStyle: String,
     onRunWalk: (RunWalkSettings) -> Unit, onTheme: (Boolean) -> Unit, onStyle: (String) -> Unit
@@ -1390,6 +1419,12 @@ private fun SettingsScreen(
         Button(onClick = onApiKey, colors = ButtonDefaults.buttonColors(containerColor = Panel, contentColor = Lime)) { Text(if (hasIntervalsKey) "Ganti API key" else "Masukkan API key") }
         OutlinedButton(onClick = onSync, enabled = hasIntervalsKey && !syncBusy) { Text(if (syncBusy) "Menyinkronkan…" else "Sinkronkan sekarang") }
         if (syncMessage.isNotBlank()) Text(syncMessage, color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+        SectionTitle("Cadangkan data", "BACKUP JSON · SAF")
+        Text("Ekspor aktivitas, strength, wellness, profil, rencana, PAR-Q, dan pengaturan. Pemulihan menggabungkan data baru tanpa menimpa catatan yang sudah ada. API key tidak ikut diekspor.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onBackupExport, modifier = Modifier.weight(1f)) { Text("Ekspor backup") }
+            OutlinedButton(onClick = onBackupImport, modifier = Modifier.weight(1f)) { Text("Pulihkan backup") }
+        }
         SectionTitle("Strength", "TARGET MINGGUAN")
         InfoCard("Target strength", "$strengthTarget hari per minggu", "COACH")
         OutlinedButton(onClick = onStrengthTarget, modifier = Modifier.fillMaxWidth()) { Text("Atur target strength mingguan") }

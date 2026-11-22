@@ -5,7 +5,8 @@ RunSense Android is a **native Kotlin + Jetpack Compose application**. It does n
 ## Implemented
 
 - Native Compose UI matched to `runsense.html`: navy/green palette, floating pill bottom navigation with four icon tabs (Hari Ini, Riwayat, Progres, Saya), editorial page heroes, filter docks, stat tiles, and grouped settings cards. Coach and Jam open from Saya with a back bar.
-- Native local activity, strength, wellness, and athlete-profile entry with persistent local storage.
+- Native local activity, strength, wellness, and athlete-profile entry with persistent local storage, including age for the domain athlete profile.
+- Strength logging is exercise-specific: timed/isometric movements (e.g. plank, side plank, wall sit) record duration only; dynamic movements record sets × repetitions only. Coach load and progression use the selected dose type without double-counting the other measure; legacy logs remain readable.
 - The original RunSense Kotlin domain engine is ported into `:domain`: capacity/stage estimation, LTHR/LT pace, readiness, autonomic checks, session classification, daily Coach design, workout steps, stream analysis, and review logic.
 - Coach UI consumes `Snapshot.processData()`, including stage, threshold estimates, 5K estimate, and today's recommendation.
 - The native data module (`:data`) includes RunSense-compatible JSON codecs, Intervals.icu ingestion, Huawei watch import, stream summaries, and repository persistence.
@@ -17,7 +18,7 @@ RunSense Android is a **native Kotlin + Jetpack Compose application**. It does n
 
 ## Still to integrate / validate
 
-- Full original strength progression and exact Coach state inputs (pain check-in, full autonomic baselines, weekly plan, race settings).
+- Further parity work for the full original Coach state inputs and richer strength progression rules (the current native app now has conservative per-exercise progression based on completed logs).
 - Complete native pace/HR zone charts and broader analytics parity with the web version.
 - GPS/background run recording and native workout delivery to the watch.
 - Verify Huawei pairing, full-history sync, Intervals.icu sync, and stream review on the actual phone and Watch Fit 2. CI compilation is not a substitute for device validation.

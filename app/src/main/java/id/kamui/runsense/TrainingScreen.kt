@@ -160,7 +160,7 @@ internal fun TrainingScreen(
             ) else listOf(
                 visibleStrength.size.toString() to "Catatan",
                 visibleStrength.count { it.completed }.toString() to "Selesai",
-                RunSenseFormat.durationWholeMinutes(visibleStrength.sumOf { it.durationMin }) to "Durasi"
+                RunSenseFormat.durationWholeMinutes(visibleStrength.filter { it.doseType == "duration" }.sumOf { it.durationMin }) to "Durasi"
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 tiles.forEachIndexed { index, tile ->

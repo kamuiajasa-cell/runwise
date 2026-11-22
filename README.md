@@ -17,8 +17,8 @@ RunSense Android is a **native Kotlin + Jetpack Compose application**. It does n
 
 ## Still to integrate / validate
 
-- Full parity for the original strength progression menus (per-exercise levels, skip/recovery rules, form check) and pre-run subjective check-in remains incomplete. Native strength logs, set/repetition/load capture, post-run RPE/pain check-in, weekly target, and Coach load integration are present.
-- Complete native pace/HR zone charts and broader analytics parity with the web version.
+- Full parity for the original strength progression menus (daily menu selection, full per-exercise levels, skip/recovery rules, and form check) and pre-run subjective check-in remains incomplete. Native strength logs, set/repetition/load capture, conservative per-exercise progression suggestions, post-run RPE/pain check-in, weekly target, and Coach load integration are present.
+- HR-zone distribution is now rendered in native Progress when stream data is available. Pace-zone charts and remaining analytics parity with the web version are still incomplete.
 - GPS/background run recording remains to be integrated and validated.
 - Full-history Huawei sync, Intervals.icu sync, and stream review still require repeatable end-to-end regression checks on the actual phone and Watch Fit 2. CI compilation is not a substitute for device validation.
 - Migrate existing browser-local records; new syncs can restore data from connected Intervals.icu / Huawei sources, but local browser storage is not copied automatically.

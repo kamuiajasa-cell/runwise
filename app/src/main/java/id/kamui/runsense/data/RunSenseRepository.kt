@@ -246,11 +246,14 @@ class RunSenseRepository(context: Context) {
             return (0 until points.length()).mapNotNull { i ->
                 val p = points.optJSONArray(i) ?: return@mapNotNull null
                 if (p.length() < 5) return@mapNotNull null
+                val time = p.optDouble(0, Double.NaN)
+                if (!time.isFinite() || time < 0.0) return@mapNotNull null
+                fun finiteAt(index: Int): Double = p.optDouble(index, 0.0).takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
                 RawStreamPoint(
-                    timeSec = p.optDouble(0, Double.NaN),
-                    heartRate = p.optDouble(1, 0.0),
-                    speedMps = p.optDouble(2, 0.0),
-                    cadenceRaw = p.optDouble(4, 0.0),
+                    timeSec = time,
+                    heartRate = finiteAt(1),
+                    speedMps = finiteAt(2),
+                    cadenceRaw = finiteAt(4),
                 )
             }
         }
@@ -282,18 +285,21 @@ class RunSenseRepository(context: Context) {
         val distance = series("distance")
         var previousTime = 0.0
         var previousDistance = 0.0
-        return (0 until time.length()).map { i ->
+        return (0 until time.length()).mapNotNull { i ->
             val t = time.optDouble(i, Double.NaN)
+            if (!t.isFinite() || t < 0.0) return@mapNotNull null
             val v = speed?.optDouble(i, 0.0) ?: run {
-                val d = distance?.optDouble(i, 0.0) ?: previousDistance
+                val d = distance?.optDouble(i, previousDistance) ?: previousDistance
                 val dt = t - previousTime
-                val derived = if (dt > 0) (d - previousDistance) / dt else 0.0
-                previousDistance = d
+                val derived = if (dt > 0.0 && d.isFinite() && d >= previousDistance) (d - previousDistance) / dt else 0.0
+                if (d.isFinite() && d >= previousDistance) previousDistance = d
                 previousTime = t
                 derived
             }
-            RawStreamPoint(t, hr?.optDouble(i, 0.0) ?: 0.0, v, cadence?.optDouble(i, 0.0) ?: 0.0)
-        }.filter { it.timeSec.isFinite() }
+            fun finiteAt(series: JSONArray?): Double =
+                series?.optDouble(i, 0.0)?.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
+            RawStreamPoint(t, finiteAt(hr), v.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0, finiteAt(cadence))
+        }
     }
 
     /** Merge Intervals.icu / native domain repository records without duplicating stable activity IDs. */

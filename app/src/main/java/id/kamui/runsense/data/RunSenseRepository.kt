@@ -17,6 +17,35 @@ class RunSenseRepository(context: Context) {
     private val appContext = context.applicationContext
     private val prefs = context.getSharedPreferences("runsense_native_v1", Context.MODE_PRIVATE)
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    private val streamDirectory by lazy { java.io.File(appContext.filesDir, "streams").apply { mkdirs() } }
+    private fun streamFile(prefix: String, id: String) = java.io.File(streamDirectory, "$prefix-${id.replace(Regex("[^A-Za-z0-9._-]"), "_")}.json")
+    private fun migrateLegacyStreamsOnce() {
+        if (prefs.getBoolean("streams_file_migration_v1", false)) return
+        val legacy = prefs.all.filterKeys { it.startsWith("icu_stream_") || it.startsWith("watch_stream_") }
+        legacy.forEach { (key, value) ->
+            val raw = value as? String ?: return@forEach
+            val prefix = if (key.startsWith("watch_stream_")) "watch" else "icu"
+            val id = key.removePrefix("watch_stream_").removePrefix("icu_stream_")
+            runCatching { streamFile(prefix, id).writeText(raw, Charsets.UTF_8) }
+        }
+        prefs.edit().putBoolean("streams_file_migration_v1", true).apply()
+        if (legacy.isNotEmpty()) prefs.edit().remove(*legacy.keys.toTypedArray()).apply()
+        pruneStreams()
+    }
+    private fun pruneStreams() {
+        streamDirectory.listFiles()?.filter { it.isFile && it.extension == "json" }
+            ?.sortedByDescending { it.lastModified() }?.drop(60)?.forEach { it.delete() }
+    }
+    fun storeIcuStream(activityId: String, json: String) {
+        migrateLegacyStreamsOnce()
+        streamFile("icu", activityId).writeText(json, Charsets.UTF_8)
+        pruneStreams()
+    }
+    private fun storeWatchStream(activityId: String, json: String) {
+        migrateLegacyStreamsOnce()
+        streamFile("watch", activityId).writeText(json, Charsets.UTF_8)
+        pruneStreams()
+    }
 
     fun activities(): List<ActivityRecord> = objects("activities").mapNotNull { o ->
         try { ActivityRecord(o.getString("id"), o.getLong("startedAt"), o.getString("type"), o.getDouble("durationMin"), o.getDouble("distanceKm"), o.optInt("averageHr"), o.optDouble("externalLoad"), o.optBoolean("quality"), o.optInt("rpe"), o.optString("feel"), o.optInt("pain")) } catch (_: Exception) { null }
@@ -26,8 +55,22 @@ class RunSenseRepository(context: Context) {
         try { StrengthRecord(o.getString("id"), o.getString("date"), o.getString("category"), o.optInt("durationMin"), o.optInt("level"), o.optBoolean("completed"), o.optString("exercise"), o.optInt("sets"), o.optInt("reps"), o.optDouble("resistanceKg")) } catch (_: Exception) { null }
     }.sortedByDescending { it.date }
 
+    private fun validWellnessDate(raw: String): Boolean {
+        val parsed = runCatching { java.time.LocalDate.parse(raw) }.getOrNull() ?: return false
+        return !parsed.isAfter(java.time.LocalDate.now())
+    }
+
+    private fun finitePositive(o: JSONObject, key: String): Double? =
+        if (!o.has(key) || o.isNull(key)) null else o.optDouble(key, Double.NaN).takeIf { it.isFinite() && it > 0.0 }
+
     fun wellness(): List<WellnessRecord> = objects("wellness").mapNotNull { o ->
-        try { WellnessRecord(o.getString("date"), o.optInt("restingHr"), o.optDouble("sleepHours"), o.optDouble("hrv")) } catch (_: Exception) { null }
+        val date = o.optString("date").trim()
+        if (!validWellnessDate(date)) return@mapNotNull null
+        val rhr = o.optInt("restingHr", 0).takeIf { it in 25..250 } ?: 0
+        val sleep = finitePositive(o, "sleepHours")
+        val hrv = finitePositive(o, "hrv")
+        if (rhr == 0 && sleep == null && hrv == null) return@mapNotNull null
+        WellnessRecord(date, rhr, sleep ?: 0.0, hrv ?: 0.0)
     }.sortedBy { it.date }
 
     fun profile(): AthleteProfile = AthleteProfile(
@@ -74,12 +117,19 @@ class RunSenseRepository(context: Context) {
             JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
         } finally { connection.disconnect() }
         val current = root.getJSONObject("current")
+        val temperature = current.optDouble("temperature_2m", Double.NaN)
+        val apparent = current.optDouble("apparent_temperature", temperature)
+        val wind = current.optDouble("wind_speed_10m", 0.0)
+        val precipitation = current.optDouble("precipitation", 0.0)
+        require(temperature.isFinite() && apparent.isFinite() && wind.isFinite() && precipitation.isFinite()) {
+            "Data cuaca dari layanan tidak valid. Coba perbarui beberapa saat lagi."
+        }
         val weather = WeatherSnapshot(
-            current.optDouble("temperature_2m", Double.NaN),
-            current.optDouble("apparent_temperature", current.optDouble("temperature_2m", Double.NaN)),
-            current.optInt("relative_humidity_2m", 0),
-            current.optDouble("wind_speed_10m", 0.0),
-            current.optDouble("precipitation", 0.0),
+            temperature,
+            apparent,
+            current.optInt("relative_humidity_2m", 0).coerceIn(0, 100),
+            wind.coerceAtLeast(0.0),
+            precipitation.coerceAtLeast(0.0),
             current.optInt("weather_code", 0),
             System.currentTimeMillis(), location.latitude, location.longitude
         )
@@ -185,7 +235,8 @@ class RunSenseRepository(context: Context) {
     }
 
     fun streamPoints(activityId: String): List<RawStreamPoint> {
-        val watchRaw = prefs.getString("watch_stream_$activityId", null)
+        migrateLegacyStreamsOnce()
+        val watchRaw = streamFile("watch", activityId).takeIf { it.isFile }?.readText(Charsets.UTF_8)
         if (watchRaw != null) {
             val points = try { JSONArray(watchRaw) } catch (_: Exception) { JSONArray() }
             return (0 until points.length()).mapNotNull { i ->
@@ -199,7 +250,7 @@ class RunSenseRepository(context: Context) {
                 )
             }
         }
-        val raw = prefs.getString("icu_stream_$activityId", null) ?: return emptyList()
+        val raw = streamFile("icu", activityId).takeIf { it.isFile }?.readText(Charsets.UTF_8) ?: return emptyList()
         return parseIntervalsStream(raw)
     }
 
@@ -305,7 +356,7 @@ class RunSenseRepository(context: Context) {
             val streamId = workout.optString("iid")
             val points = workout.optJSONArray("pts")
             if (streamId.isNotBlank() && points != null && points.length() > 0) {
-                prefs.edit().putString("watch_stream_$streamId", points.toString()).apply()
+                storeWatchStream(streamId, points.toString())
             }
         }
         val incomingActs = root.optJSONArray("acts") ?: JSONArray()

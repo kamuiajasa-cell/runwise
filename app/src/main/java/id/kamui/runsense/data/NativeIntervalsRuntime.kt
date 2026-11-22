@@ -23,6 +23,9 @@ import com.runnow.domain.clPers
 import com.runnow.domain.clProfile
 import com.runnow.domain.clSlots
 import com.runnow.domain.climDate
+import com.runnow.domain.clK
+import com.runnow.domain.stage
+import com.runnow.domain.detectType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
@@ -31,10 +34,16 @@ import java.time.ZoneId
 import java.time.Instant
 
 /** Climate-aware Coach payload. Forecast slots and personal historical response are kept separate. */
+data class ClimateStreamStat(val runs: Int, val samples: Int, val hrMedian: Double, val paceMedianMinKm: Double)
+data class ClimateStreamComparison(val deltaHr: Int, val runs: Int, val confidence: String)
+
 data class CoachClimateInsight(
     val slots: List<ClimSlot>,
     val personal: ClimPers,
     val responseByClimate: ClimProfile,
+    val streamByClimate: Map<String, ClimateStreamStat>,
+    val streamComparison: Map<String, ClimateStreamComparison>,
+    val streamSamples: Int,
     val matchedRuns: Int,
     val totalRuns: Int,
     val forecastAvailable: Boolean,
@@ -121,6 +130,49 @@ class NativeIntervalsRuntime(context: Context) {
         val response = snapshot.clProfile(contexts, personal)
         val matched = contexts.values.count { !it.na && it.t != null }
         val total = domain.data.acts.count { it.kind == com.runnow.domain.ActKind.RUN && it.km >= 2.0 }
+        // Attach the run's hourly weather context to its native per-second HR/speed stream.
+        // Aggregate per run first so longer activities do not dominate the climate comparison.
+        data class RunStream(val hr: Double, val pace: Double, val samples: Int)
+        val grouped = LinkedHashMap<String, MutableList<RunStream>>()
+        val stage = snapshot.stage()
+        var streamSampleCount = 0
+        for (activity in domain.data.acts) {
+            if (activity.kind != com.runnow.domain.ActKind.RUN || activity.km < 2.0) continue
+            if (domain.data.snapshot(System.currentTimeMillis(), ZoneId.systemDefault()).detectType(activity, stage).type != "easy") continue
+            val context = contexts[activity.start] ?: continue
+            if (context.na || context.t == null) continue
+            val id = activity.icuId ?: activity.lid
+            val points = local.streamPoints(id)
+            val valid = points.filter { it.heartRate > 40.0 && it.speedMps >= 0.5 && it.speedMps <= 8.0 }
+            if (valid.size < 60) continue
+            val hr = valid.map { it.heartRate }.average()
+            val pace = valid.map { 1000.0 / it.speedMps / 60.0 }.average()
+            if (!hr.isFinite() || !pace.isFinite()) continue
+            val key = clK(context, personal)
+            if (key.isBlank()) continue
+            grouped.getOrPut(key) { ArrayList() }.add(RunStream(hr, pace, valid.size))
+            streamSampleCount += valid.size
+        }
+        fun median(values: List<Double>): Double {
+            val sorted = values.sorted()
+            return if (sorted.isEmpty()) 0.0 else if (sorted.size % 2 == 1) sorted[sorted.size / 2]
+            else (sorted[sorted.size / 2 - 1] + sorted[sorted.size / 2]) / 2.0
+        }
+        val streamStats = grouped.mapValues { (_, rows) ->
+            ClimateStreamStat(rows.size, rows.sumOf { it.samples }, median(rows.map { it.hr }), median(rows.map { it.pace }))
+        }
+        val streamCmp = LinkedHashMap<String, ClimateStreamComparison>()
+        val cool = streamStats["sejuk"]
+        if (cool != null && cool.runs >= 3) {
+            for ((key, stat) in streamStats) {
+                if (key == "sejuk" || stat.runs < 3 || kotlin.math.abs(stat.paceMedianMinKm - cool.paceMedianMinKm) > 0.5) continue
+                val n = minOf(stat.runs, cool.runs)
+                streamCmp[key] = ClimateStreamComparison(
+                    (stat.hrMedian - cool.hrMedian).toInt(), n,
+                    if (n < 6) "mulai terbaca" else if (n < 12) "cukup konsisten" else "semakin matang"
+                )
+            }
+        }
         val slots = if (current != null) {
             val nowContext = ClimCtx(
                 t = current.temperatureC,
@@ -136,7 +188,7 @@ class NativeIntervalsRuntime(context: Context) {
                 System.currentTimeMillis(), ZoneId.systemDefault()
             ) else emptyList()
         } else emptyList()
-        return CoachClimateInsight(slots, personal, response, matched, total, slots.isNotEmpty())
+        return CoachClimateInsight(slots, personal, response, streamStats, streamCmp, streamSampleCount, matched, total, slots.isNotEmpty())
     }
 
     suspend fun autoHeatToday(): Boolean = domain.autoHeat()

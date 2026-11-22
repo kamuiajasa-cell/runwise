@@ -16,11 +16,28 @@ import com.runnow.data.OpenMeteoHttp
 import com.runnow.data.Locator
 import com.runnow.domain.GeoLoc
 import com.runnow.domain.ClimCtx
+import com.runnow.domain.ClimPers
+import com.runnow.domain.ClimProfile
+import com.runnow.domain.ClimSlot
+import com.runnow.domain.clPers
+import com.runnow.domain.clProfile
+import com.runnow.domain.clSlots
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.ZoneId
+import java.time.Instant
+
+/** Climate-aware Coach payload. Forecast slots and personal historical response are kept separate. */
+data class CoachClimateInsight(
+    val slots: List<ClimSlot>,
+    val personal: ClimPers,
+    val responseByClimate: ClimProfile,
+    val matchedRuns: Int,
+    val totalRuns: Int,
+    val forecastAvailable: Boolean,
+)
 
 /** Android adapters for the original RunSense data module. */
 class NativeIntervalsRuntime(context: Context) {
@@ -89,6 +106,36 @@ class NativeIntervalsRuntime(context: Context) {
             if (count == 0) return@repeat
         }
         return matched
+    }
+
+    suspend fun coachClimateInsight(durationMin: Int, current: id.kamui.runsense.domain.WeatherSnapshot?): CoachClimateInsight? {
+        val loc = domain.ensureLocation() ?: return null
+        // Complete pending historical weather matching before deriving personal thresholds.
+        repeat(4) {
+            if (domain.climateMatch() == 0) return@repeat
+        }
+        val snapshot = domain.data.snapshot(System.currentTimeMillis(), ZoneId.systemDefault())
+        val contexts = domain.climate.ctx
+        val personal = snapshot.clPers(contexts)
+        val response = snapshot.clProfile(contexts, personal)
+        val matched = contexts.values.count { !it.na && it.t != null }
+        val total = domain.data.acts.count { it.kind == com.runnow.domain.ActKind.RUN && it.km >= 2.0 }
+        val slots = if (current != null) {
+            val nowContext = ClimCtx(
+                t = current.temperatureC,
+                rh = current.humidityPct.toDouble(),
+                at = current.apparentC,
+                w = current.windKmh,
+                p = current.precipitationMm,
+                code = current.weatherCode.toDouble(),
+            )
+            val forecast = domain.wxGet(loc.lat, loc.lon, "fc", climDate(System.currentTimeMillis(), ZoneId.systemDefault()))
+            if (forecast != null) clSlots(
+                forecast, durationMin.coerceIn(10, 180).toDouble(), nowContext, personal,
+                System.currentTimeMillis(), ZoneId.systemDefault()
+            ) else emptyList()
+        } else emptyList()
+        return CoachClimateInsight(slots, personal, response, matched, total, slots.isNotEmpty())
     }
 
     suspend fun autoHeatToday(): Boolean = domain.autoHeat()

@@ -67,13 +67,20 @@ class RunSenseRepository(context: Context) {
     fun strength(): List<StrengthRecord> = objects("strength").mapNotNull { o ->
         val id = o.optString("id").trim()
         val date = o.optString("date")
-        val duration = o.optInt("durationMin", -1)
+        val exercise = o.optString("exercise")
+        val sets = o.optInt("sets").coerceAtLeast(0)
+        val reps = o.optInt("reps").coerceAtLeast(0)
+        val storedType = o.optString("doseType")
+        val doseType = if (storedType == "duration" || storedType == "reps") storedType
+            else inferStrengthDoseType(exercise, sets, reps)
+        val duration = o.optInt("durationMin", 0)
         val resistance = o.optDouble("resistanceKg", 0.0)
+        val validDose = if (doseType == "duration") duration in 1..720 else sets in 1..30 && reps in 1..100
         if (id.isBlank() || !runCatching { java.time.LocalDate.parse(date) }.isSuccess ||
-            duration !in 1..720 || !resistance.isFinite() || resistance < 0.0) return@mapNotNull null
+            !validDose || !resistance.isFinite() || resistance < 0.0) return@mapNotNull null
         StrengthRecord(id, date, o.optString("category", "full"), duration, o.optInt("level").coerceIn(0, 10),
-            o.optBoolean("completed"), o.optString("exercise"), o.optInt("sets").coerceAtLeast(0),
-            o.optInt("reps").coerceAtLeast(0), resistance)
+            o.optBoolean("completed"), exercise, if (doseType == "reps") sets else 0,
+            if (doseType == "reps") reps else 0, resistance, doseType)
     }.sortedByDescending { it.date }
 
     private fun validWellnessDate(raw: String): Boolean = isValidWellnessDate(raw)
@@ -111,7 +118,8 @@ class RunSenseRepository(context: Context) {
         prefs.getInt("rhr", 63).coerceIn(25, 250), prefs.getInt("maxHr", 185).coerceIn(80, 250),
         prefs.getInt("lthr", 160).coerceIn(80, 230), prefs.getInt("ltPace", 390).coerceIn(180, 1800),
         prefs.getInt("heightCm", 0).coerceIn(0, 230),
-        prefs.getFloat("weightKg", 0f).toDouble().takeIf { it.isFinite() && it > 0.0 } ?: 0.0
+        prefs.getFloat("weightKg", 0f).toDouble().takeIf { it.isFinite() && it > 0.0 } ?: 0.0,
+        prefs.getInt("ageYears", 0).coerceIn(0, 120)
     )
     fun saveProfile(p: AthleteProfile) {
         val weight = p.weightKg.takeIf { it.isFinite() && it > 0.0 }?.coerceAtMost(250.0) ?: 0.0
@@ -119,7 +127,8 @@ class RunSenseRepository(context: Context) {
             .putInt("lthr", p.thresholdHr.coerceIn(80, 230))
             .putInt("ltPace", p.thresholdPaceSecPerKm.coerceIn(180, 1800))
             .putInt("heightCm", p.heightCm.coerceIn(0, 230))
-            .putFloat("weightKg", weight.toFloat()).apply()
+            .putFloat("weightKg", weight.toFloat())
+            .putInt("ageYears", p.ageYears.coerceIn(0, 120)).apply()
     }
     fun runWalkSettings(): RunWalkSettings = RunWalkSettings(
         prefs.getBoolean("runwalk_enabled", false),
@@ -230,13 +239,16 @@ class RunSenseRepository(context: Context) {
     }
 
     fun addStrength(category: String, duration: Int, level: Int, completed: Boolean, exercise: String = "", sets: Int = 0, reps: Int = 0, resistanceKg: Double = 0.0) {
-        if (duration !in 1..720) return
+        val doseType = inferStrengthDoseType(exercise, sets, reps)
+        val validDose = if (doseType == "duration") duration in 1..720 else sets in 1..30 && reps in 1..100
+        if (!validDose) return
         val resistance = resistanceKg.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
         val a = readArray("strength")
         a.put(JSONObject().put("id", UUID.randomUUID().toString()).put("date", dateFormat.format(Date()))
-            .put("category", category.ifBlank { "full" }).put("durationMin", duration).put("level", level.coerceIn(0, 10))
-            .put("completed", completed).put("exercise", exercise).put("sets", sets.coerceAtLeast(0))
-            .put("reps", reps.coerceAtLeast(0)).put("resistanceKg", resistance))
+            .put("category", category.ifBlank { "full" }).put("durationMin", if (doseType == "duration") duration else 0)
+            .put("doseType", doseType).put("level", level.coerceIn(0, 10)).put("completed", completed)
+            .put("exercise", exercise).put("sets", if (doseType == "reps") sets.coerceAtLeast(0) else 0)
+            .put("reps", if (doseType == "reps") reps.coerceAtLeast(0) else 0).put("resistanceKg", resistance))
         writeArray("strength", a)
     }
 
@@ -533,7 +545,7 @@ class RunSenseRepository(context: Context) {
     data class BackupImportResult(val activitiesAdded: Int, val strengthAdded: Int, val wellnessAdded: Int, val settingsAdded: Int, val skipped: Int)
 
     private val backupSettingKeys = setOf(
-        "rhr", "maxHr", "lthr", "ltPace", "heightCm", "weightKg",
+        "rhr", "maxHr", "lthr", "ltPace", "heightCm", "weightKg", "ageYears",
         "runwalk_enabled", "runwalk_run_seconds", "runwalk_walk_seconds",
         "weekly_strength_target", "parq_answers", "parq_updated_at", "last_sync_at",
         "plan_settings", "light_theme", "onboarding_complete"

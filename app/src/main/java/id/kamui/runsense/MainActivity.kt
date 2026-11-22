@@ -410,7 +410,7 @@ private fun WeeklyPlanHomeCard(snapshot: Snapshot?, settings: com.runnow.domain.
                         Column(Modifier.weight(1f).background(Ink, RoundedCornerShape(9.dp)).padding(vertical = 8.dp, horizontal = 2.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(days[PLAN_DAYS.indexOf(day)], color = Muted, fontSize = 11.sp)
                             Text(when (plan?.t) { "easy" -> "E"; "quality" -> "Q"; "long" -> "L"; "rest" -> "R"; else -> if (plan == null) "—" else "A" }, color = if (plan == null || plan.t == "rest") Muted else Lime, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            Text(if (plan == null) " " else RunSenseFormat.decimal(plan.km, 1), color = Muted, fontSize = 11.sp)
+                            Text(if (plan == null || RunSenseFormat.valid(plan.km) == null) " " else RunSenseFormat.decimal(plan.km, 1), color = Muted, fontSize = 11.sp)
                         }
                     }
                 }
@@ -616,7 +616,7 @@ private fun ProgressScreen(
     fun paceText(minPerKm: Double): String {
         if (!minPerKm.isFinite() || minPerKm <= 0) return "—"
         val sec = (minPerKm * 60).roundToInt()
-        return "${sec / 60}:%02d".format(sec % 60)
+        return RunSenseFormat.pace(minPerKm)
     }
     fun confidence(n: Int, span: Double): String = when {
         n >= 12 && span >= 56 -> "tinggi"
@@ -683,7 +683,7 @@ private fun ProgressScreen(
         if (refHr != null) add("HR acuan" to "${refHr.roundToInt()} bpm")
         if (earlyPace != null && latePace != null) {
             add("Pace setara-HR" to "${paceText(earlyPace)} → ${paceText(latePace)} /km")
-            add("Perubahan proxy" to "${efficiencyChange?.let { "%+.1f".format(Locale.US, it) } ?: "—"}%")
+            add("Perubahan proxy" to (efficiencyChange?.takeIf { it.isFinite() }?.let { "%+.1f%%".format(Locale.US, it) } ?: "—"))
         }
         add("Easy run valid" to "${easy.size} sesi · minimal 4")
     }
@@ -840,7 +840,7 @@ private fun ProgressScreen(
         }
         ProgressDimensionCard("Performa", "Pace terbaik per kelompok jarak dibanding periode sebelumnya", performanceStatus, confidence(deltas.size, span), performanceRows, performanceInsight)
         ProgressDimensionCard("Efisiensi aerobik", "Easy run dengan HR valid · pace dinormalisasi ke HR acuan", efficiencyStatus, confidence(easy.size, if (easy.size > 1) (easy.last().first.startedAt - easy.first().first.startedAt) / dayMs else 0.0), efficiencyRows, if (easy.size < 4) "${easy.size} sesi memenuhi syarat. Dibutuhkan minimal 4 easy run ≥2 km dengan HR valid." else "Ini proxy efisiensi, bukan pengukuran konsumsi oksigen. Suhu, elevasi, tidur, dan hidrasi belum dikontrol.")
-        ProgressDimensionCard("Kapasitas latihan", "Volume eksternal, minggu aktif, dan CTL bila tersedia", capacityStatus, confidence(validRuns.size, span), capacityRows, if (volumeDelta == null) "Riwayat minggu selesai belum cukup untuk membandingkan tren volume." else "Median jarak mingguan berubah ${ "%+.1f%%".format(Locale.US, volumeDelta) }. Minggu kosong tetap dihitung; kenaikan bukan target yang harus dipaksakan.")
+        ProgressDimensionCard("Kapasitas latihan", "Volume eksternal, minggu aktif, dan CTL bila tersedia", capacityStatus, confidence(validRuns.size, span), capacityRows, if (volumeDelta == null) "Riwayat minggu selesai belum cukup untuk membandingkan tren volume." else "Median jarak mingguan berubah ${volumeDelta.takeIf { it.isFinite() }?.let { "%+.1f%%".format(Locale.US, it) } ?: "—"}. Minggu kosong tetap dihitung; kenaikan bukan target yang harus dipaksakan.")
         ProgressDimensionCard("Durability", "Kestabilan pace dan HR di sepertiga akhir lari panjang", durabilityStatus, confidence(durability.size, if (durability.size > 1) (durability.last().date - durability.first().date) / dayMs else 0.0), durabilityRows, if (durability.size < 3) "Butuh minimal 3 lari easy/long ≥5 km atau ≥40 menit dengan stream valid. Saat ini ${durability.size} sesi memenuhi syarat." else "Dibandingkan sepertiga tengah dengan sepertiga akhir. Elevasi, suhu, dan fueling belum dikontrol.")
         ProgressDimensionCard("Keberlanjutan", "Konsistensi latihan dan sinyal pemulihan dibanding baseline pribadi", sustainabilityStatus, if (latestWell.size >= 5 || recentStrength.size >= 3) "sedang" else "rendah", sustainabilityRows, if (recentRhr != null && baseRhr != null && recentRhr - baseRhr >= 3) "RHR terbaru ≥3 bpm di atas baseline. Ini sinyal untuk dipantau, bukan diagnosis." else "Data nyeri/cedera tidak tersedia lengkap; kartu ini tidak membuat diagnosis atau skor risiko cedera.")
         SectionTitle("Perkembangan strength", "28 HARI")
@@ -1201,7 +1201,7 @@ private fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSumma
         val weekEnd = weekStart.plusDays(6)
         val checkins7d = activities.count { item ->
             item.type.equals("run", true) && (item.rpe > 0 || item.pain > 0 || item.feel.isNotBlank()) &&
-                java.time.Instant.ofEpochMilli(item.startedAt).atZone(java.time.ZoneId.systemDefault()).toLocalDate().let { !it.isBefore(weekStart) && !it.isAfter(weekEnd) }
+                java.time.Instant.ofEpochMilli(item.startedAt).atZone(java.time.ZoneId.systemDefault()).toLocalDate().let { !it.isBefore(java.time.LocalDate.now().minusDays(6)) && !it.isAfter(java.time.LocalDate.now()) }
         }
         val strengthDaysThisWeek = strength.filter { it.completed && runCatching { java.time.LocalDate.parse(it.date) }.getOrNull()?.let { date -> !date.isBefore(weekStart) && !date.isAfter(weekEnd) } == true }.map { it.date }.distinct().size
         DisclosureSection("Beban & strength", "Ringkasan beban, check-in, dan strength") {

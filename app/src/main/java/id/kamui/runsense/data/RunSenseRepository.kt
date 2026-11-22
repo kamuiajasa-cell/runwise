@@ -111,7 +111,8 @@ class RunSenseRepository(context: Context) {
         prefs.getInt("rhr", 63).coerceIn(25, 250), prefs.getInt("maxHr", 185).coerceIn(80, 250),
         prefs.getInt("lthr", 160).coerceIn(80, 230), prefs.getInt("ltPace", 390).coerceIn(180, 1800),
         prefs.getInt("heightCm", 0).coerceIn(0, 230),
-        prefs.getFloat("weightKg", 0f).toDouble().takeIf { it.isFinite() && it > 0.0 } ?: 0.0
+        prefs.getFloat("weightKg", 0f).toDouble().takeIf { it.isFinite() && it > 0.0 } ?: 0.0,
+        prefs.getInt("ageYears", 0).coerceIn(0, 120)
     )
     fun saveProfile(p: AthleteProfile) {
         val weight = p.weightKg.takeIf { it.isFinite() && it > 0.0 }?.coerceAtMost(250.0) ?: 0.0
@@ -119,7 +120,8 @@ class RunSenseRepository(context: Context) {
             .putInt("lthr", p.thresholdHr.coerceIn(80, 230))
             .putInt("ltPace", p.thresholdPaceSecPerKm.coerceIn(180, 1800))
             .putInt("heightCm", p.heightCm.coerceIn(0, 230))
-            .putFloat("weightKg", weight.toFloat()).apply()
+            .putFloat("weightKg", weight.toFloat())
+            .putInt("ageYears", p.ageYears.coerceIn(0, 120)).apply()
     }
     fun runWalkSettings(): RunWalkSettings = RunWalkSettings(
         prefs.getBoolean("runwalk_enabled", false),
@@ -533,7 +535,7 @@ class RunSenseRepository(context: Context) {
     data class BackupImportResult(val activitiesAdded: Int, val strengthAdded: Int, val wellnessAdded: Int, val settingsAdded: Int, val skipped: Int)
 
     private val backupSettingKeys = setOf(
-        "rhr", "maxHr", "lthr", "ltPace", "heightCm", "weightKg",
+        "rhr", "maxHr", "lthr", "ltPace", "heightCm", "weightKg", "ageYears",
         "runwalk_enabled", "runwalk_run_seconds", "runwalk_walk_seconds",
         "weekly_strength_target", "parq_answers", "parq_updated_at", "last_sync_at",
         "plan_settings", "light_theme", "onboarding_complete"

@@ -516,7 +516,7 @@ private fun TrainingScreen(
             }
         }
         if (mode == "run") {
-            item { SectionTitle("Riwayat lari & jalan", "\${visibleRuns.size} SESI") }
+            item { SectionTitle("Riwayat lari & jalan", "${visibleRuns.size} SESI") }
             if (visibleRuns.isEmpty()) item { EmptyCard("Belum ada aktivitas pada periode ini.") }
             groupedRuns.forEach { (weekStart, weekItems) ->
                 item(key = "week-$weekStart") {
@@ -526,11 +526,11 @@ private fun TrainingScreen(
                             when (weekStart) {
                                 monday -> "Minggu ini"
                                 monday.minusWeeks(1) -> "Minggu lalu"
-                                else -> "\${weekStart.format(java.time.format.DateTimeFormatter.ofPattern("d MMM", Locale("id", "ID")))} – \${weekStart.plusDays(6).format(java.time.format.DateTimeFormatter.ofPattern("d MMM", Locale("id", "ID")))}"
+                                else -> "${weekStart.format(java.time.format.DateTimeFormatter.ofPattern("d MMM", Locale("id", "ID")))} – ${weekStart.plusDays(6).format(java.time.format.DateTimeFormatter.ofPattern("d MMM", Locale("id", "ID")))}"
                             },
                             color = White, fontSize = 12.sp, fontWeight = FontWeight.Bold
                         )
-                        Text("\${weekItems.size} sesi · \${RunSenseFormat.distanceKm(km, aggregate = true)}", color = Muted, fontSize = 11.sp)
+                        Text("${weekItems.size} sesi · ${RunSenseFormat.distanceKm(km, aggregate = true)}", color = Muted, fontSize = 11.sp)
                     }
                 }
                 items(weekItems, key = { it.id }) { activity ->
@@ -541,14 +541,14 @@ private fun TrainingScreen(
                 OutlinedButton(onClick = { visibleCount += 20 }, modifier = Modifier.fillMaxWidth()) { Text("Tampilkan lebih banyak") }
             }
         } else {
-            item { SectionTitle("Riwayat strength", "\${visibleStrength.size} CATATAN") }
+            item { SectionTitle("Riwayat strength", "${visibleStrength.size} CATATAN") }
             if (visibleStrength.isEmpty()) item { EmptyCard("Belum ada catatan strength pada periode ini.") }
             items(displayedStrength, key = { it.id }) { item ->
                 InfoCard(
                     strengthLabel(item.category),
-                    "\${RunSenseFormat.strengthDate(item.date)} · \${RunSenseFormat.durationWholeMinutes(item.durationMin)} · level \${item.level}" +
-                        (if (item.exercise.isNotBlank()) " · \${item.exercise}: \${item.sets}×\${item.reps}" +
-                            (if (item.resistanceKg > 0) " @ \${RunSenseFormat.kg(item.resistanceKg)}" else "") else ""),
+                    "${RunSenseFormat.strengthDate(item.date)} · ${RunSenseFormat.durationWholeMinutes(item.durationMin)} · level ${item.level}" +
+                        (if (item.exercise.isNotBlank()) " · ${item.exercise}: ${item.sets}×${item.reps}" +
+                            (if (item.resistanceKg > 0) " @ ${RunSenseFormat.kg(item.resistanceKg)}" else "") else ""),
                     if (item.completed) "SELESAI" else "SKIP"
                 )
             }
@@ -929,7 +929,7 @@ private fun ProgressDimensionCard(
                 }
                 Divider(color = Color.White.copy(alpha = .08f))
                 Text(insight, color = White, fontSize = 11.sp, lineHeight = 16.sp)
-                Text("KEYAKINAN DATA · \${confidence}", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = .6.sp)
+                Text("KEYAKINAN DATA · ${confidence}", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = .6.sp)
             }
         }
     }
@@ -1179,70 +1179,50 @@ private fun WeeklyReviewCard(review: WeeklyReview) {
 private fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSummary, strength: List<StrengthRecord>, strengthTarget: Int, parqAnswers: List<Boolean?>, domainResult: com.runnow.domain.ProcessResult?, snapshot: Snapshot?, planSettings: com.runnow.domain.Settings, weather: WeatherSnapshot?, weatherMessage: String, modifier: Modifier, onRefreshWeather: () -> Unit, onWorkout: () -> Unit) {
     Page(modifier) {
         PageHero("PELATIHAN ADAPTIF", "Train with", "better insight.", "Evaluasi beban, pemulihan, strength, dan kondisi cuaca.")
-        WeatherCard(weather, weatherMessage, onRefreshWeather)
-        val parqYes = parqAnswers.count { it == true }
-        val parqAnswered = parqAnswers.count { it != null }
-        if (parqYes > 0) {
-            Surface(color = Color(0xFF3A2A1B), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text("PERHATIAN · PAR-Q: $parqYes JAWABAN YA", color = Color(0xFFFFC36A), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    Text("Coach tidak menganggap Anda otomatis mendapat izin untuk berlatih. Konsultasikan jawaban ini dengan tenaga kesehatan sebelum memulai atau meningkatkan latihan, terutama latihan intensitas tinggi.", color = White, fontSize = 12.sp, lineHeight = 17.sp)
+        DisclosureSection("Kondisi hari ini", "Cuaca · readiness · rekomendasi", initiallyExpanded = true) {
+            WeatherCard(weather, weatherMessage, onRefreshWeather)
+            val parqYes = parqAnswers.count { it == true }
+            val parqAnswered = parqAnswers.count { it != null }
+            if (parqYes > 0) {
+                Surface(color = Color(0xFF3A2A1B), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("PERHATIAN · PAR-Q: ${parqYes} JAWABAN YA", color = Color(0xFFFFC36A), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("Coach tidak menganggap Anda otomatis mendapat izin untuk berlatih. Konsultasikan jawaban ini dengan tenaga kesehatan sebelum memulai atau meningkatkan latihan, terutama latihan intensitas tinggi.", color = White, fontSize = 12.sp, lineHeight = 17.sp)
+                    }
                 }
+            } else if (parqAnswered < 7) {
+                InfoCard("Skrining PAR-Q belum lengkap", "${parqAnswered} dari 7 pertanyaan terisi. Lengkapi di Saya agar Coach dapat menampilkan status skrining.", "BELUM LENGKAP")
+            } else {
+                InfoCard("Skrining PAR-Q", "Tidak ada jawaban YA pada skrining terakhir. Ini bukan jaminan bebas risiko atau izin medis.", "TERISI")
             }
-        } else if (parqAnswered < 7) {
-            InfoCard("Skrining PAR-Q belum lengkap", "$parqAnswered dari 7 pertanyaan terisi. Lengkapi di Saya agar Coach dapat menampilkan status skrining.", "BELUM LENGKAP")
-        } else {
-            InfoCard("Skrining PAR-Q", "Tidak ada jawaban YA pada skrining terakhir. Ini bukan jaminan bebas risiko atau izin medis.", "TERISI")
+            ReadinessCard(summary.readiness ?: domainResult?.athlete?.score, summary.recommendation)
+            CoachRecommendationCard(domainResult?.recommendation, onWorkout)
         }
-        ReadinessCard(summary.readiness ?: domainResult?.athlete?.score, summary.recommendation)
-        CoachRecommendationCard(domainResult?.recommendation, onWorkout)
-        domainResult?.athlete?.let { athlete ->
-            InfoCard("Tahap kapasitas", athlete.stageName, "STAGE ${athlete.stage}")
-            InfoCard("Ambang laktat", "LTHR ${athlete.lthr ?: "—"} bpm · LT pace ${athlete.ltPace ?: "—"}", "AUTO / PROFIL")
-            InfoCard("Estimasi 5K", domainResult.goalEst.current, domainResult.goalEst.projection)
-        }
-        MetricCard("ACWR", summary.acwr?.let { "%.2f".format(Locale.US, it) } ?: "Belum cukup data beban kronis", Modifier.fillMaxWidth())
-        InfoCard("Sesi quality 7 hari", "${summary.qualitySessions7d} sesi tercatat", if (summary.qualitySessions7d >= 2) "KUNCI QUALITY" else "TERPANTAU")
-        InfoCard("Strength kaki 48 jam", "${RunSenseFormat.decimal(summary.legStrengthLoad48h, 1)} unit beban", if (summary.legStrengthLoad48h >= 3.4) "WASPADA BEBAN" else "NORMAL")
-        InfoCard("Total strength 48 jam", "${RunSenseFormat.decimal(summary.strengthLoad48h, 1)} unit beban", if (summary.strengthLoad48h >= 4.0) "BEBAN TINGGI" else "TERPANTAU")
-        val recentCheckins = activities.filter {
-            it.type.equals("run", true) && (it.rpe > 0 || it.pain > 0 || it.feel.isNotBlank())
-        }.take(5)
-        SectionTitle("Respons tubuh setelah lari", "${recentCheckins.size} CHECK-IN")
-        if (recentCheckins.isEmpty()) {
-            EmptyCard("Belum ada check-in RPE/feel/nyeri. Saat mencatat lari, isi seberapa berat sesi terasa dan apakah ada nyeri. Data ini membantu Coach menyesuaikan beban mingguan.")
-        } else {
-            recentCheckins.forEach { item ->
-                val date = java.time.Instant.ofEpochMilli(item.startedAt).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                val detail = "RPE ${item.rpe}/10 · feel ${item.feel.ifBlank { "—" }} · nyeri ${item.pain}/10"
-                val tag = when {
-                    item.pain >= 4 -> "NYERI TINGGI"
-                    item.pain >= 3 || item.rpe >= 8 || item.feel == "sangat berat" -> "PERLU HATI-HATI"
-                    else -> "TERCATAT"
-                }
-                InfoCard(date.toString(), detail, tag)
+
+        DisclosureSection("Kapasitas & ambang", "Tahap · ambang laktat · estimasi") {
+            domainResult?.athlete?.let { athlete ->
+                InfoCard("Tahap kapasitas", athlete.stageName, "STAGE ${athlete.stage}")
+                InfoCard("Ambang laktat", "LTHR ${athlete.lthr ?: "—"} bpm · LT pace ${athlete.ltPace ?: "—"}", "AUTO / PROFIL")
+                InfoCard("Estimasi 5K", domainResult.goalEst.current, domainResult.goalEst.projection)
             }
-            Text("RPE tinggi berulang atau nyeri yang bermakna akan menurunkan target minggu depan. Check-in tidak menggantikan pemeriksaan medis.", color = Muted, fontSize = 11.sp, lineHeight = 14.sp)
+            MetricCard("ACWR", summary.acwr?.let { "%.2f".format(Locale.US, it) } ?: "Belum cukup data beban kronis", Modifier.fillMaxWidth())
         }
         val weekStart = java.time.LocalDate.now().let { it.minusDays((it.dayOfWeek.value - 1).toLong()) }
-        val strengthDaysThisWeek = strength.filter { it.completed && runCatching { java.time.LocalDate.parse(it.date) }.getOrNull()?.let { date -> !date.isBefore(weekStart) && !date.isAfter(weekStart.plusDays(6)) } == true }.map { it.date }.distinct().size
-        InfoCard("Target strength mingguan", "$strengthDaysThisWeek / $strengthTarget hari tercapai", if (strengthDaysThisWeek >= strengthTarget && strengthTarget > 0) "TARGET TERCAPAI" else "PROGRES")
-        SectionTitle("Strength yang dibaca Coach", "${strength.size} CATATAN")
-        if (strength.isEmpty()) {
-            EmptyCard("Belum ada catatan strength. Setelah sesi disimpan sebagai selesai, bebannya masuk ke evaluasi Coach.")
-        } else {
-            strength.sortedByDescending { it.date }.take(5).forEach { item ->
-                InfoCard(
-                    strengthLabel(item.category),
-                    "${item.date} · ${RunSenseFormat.durationWholeMinutes(item.durationMin)} · level ${item.level}" + (if (item.exercise.isNotBlank()) " · ${item.exercise} ${item.sets}×${item.reps}" + (if (item.resistanceKg > 0) " @ ${RunSenseFormat.kg(item.resistanceKg)}" else "") else ""),
-                    if (item.completed) "DIPERHITUNGKAN" else "BELUM SELESAI"
-                )
-            }
-            Text(
-                "Hanya sesi yang ditandai selesai yang masuk ke beban strength. Beban kaki dan total strength 48 jam terakhir ikut memengaruhi readiness serta rekomendasi sesi berikutnya.",
-                color = Muted, fontSize = 11.sp, lineHeight = 16.sp
-            )
+        val weekEnd = weekStart.plusDays(6)
+        val checkins7d = activities.count { item ->
+            item.type.equals("run", true) && (item.rpe > 0 || item.pain > 0 || item.feel.isNotBlank()) &&
+                java.time.Instant.ofEpochMilli(item.startedAt).atZone(java.time.ZoneId.systemDefault()).toLocalDate().let { !it.isBefore(weekStart) && !it.isAfter(weekEnd) }
         }
+        val strengthDaysThisWeek = strength.filter { it.completed && runCatching { java.time.LocalDate.parse(it.date) }.getOrNull()?.let { date -> !date.isBefore(weekStart) && !date.isAfter(weekEnd) } == true }.map { it.date }.distinct().size
+        DisclosureSection("Beban & strength", "Ringkasan beban, check-in, dan strength") {
+            InfoCard("Sesi quality 7 hari", "${summary.qualitySessions7d} sesi tercatat", if (summary.qualitySessions7d >= 2) "KUNCI QUALITY" else "TERPANTAU")
+            InfoCard("Strength kaki 48 jam", "${RunSenseFormat.decimal(summary.legStrengthLoad48h, 1)} unit beban", if (summary.legStrengthLoad48h >= 3.4) "WASPADA BEBAN" else "NORMAL")
+            InfoCard("Total strength 48 jam", "${RunSenseFormat.decimal(summary.strengthLoad48h, 1)} unit beban", if (summary.strengthLoad48h >= 4.0) "BEBAN TINGGI" else "TERPANTAU")
+            InfoCard("Respons tubuh 7 hari", "$checkins7d check-in lari tercatat", if (checkins7d > 0) "TERCATAT" else "BELUM ADA")
+            InfoCard("Strength minggu ini", "$strengthDaysThisWeek / $strengthTarget hari tercapai", if (strengthDaysThisWeek >= strengthTarget && strengthTarget > 0) "TARGET TERCAPAI" else "PROGRES")
+            Text("Check-in dilakukan dari detail sesi. Hanya strength yang ditandai selesai masuk ke beban Coach.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+        }
+        DisclosureSection("Rencana & alasan", "Target, realisasi, dan dasar keputusan") {
         SectionTitle("Rencana vs realisasi", "MINGGU INI")
         if (planSettings.plan.isEmpty()) {
             EmptyCard("Belum ada rencana mingguan tersimpan di profil RunSense. Setelah rencana tersedia, Coach akan membandingkan target harian dengan kilometer aktual dan strength yang selesai.")
@@ -1315,6 +1295,7 @@ private fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSumma
         SectionTitle("Alasan rekomendasi", "TRANSPARAN")
         summary.rationale.forEachIndexed { index, reason -> InfoCard("Sinyal ${index + 1}", reason, "DATA") }
         Text("Readiness adalah heuristik latihan, bukan diagnosis medis atau prediksi cedera. Nilai dapat belum tersedia jika data pemulihan dan beban belum cukup.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+        }
     }
 }
 
@@ -1381,18 +1362,18 @@ private fun SettingsScreen(
             runCatching { java.time.LocalDate.parse(it.date) }.getOrNull()?.let { date -> !date.isBefore(wellnessToday.minusDays(2)) } == true
         }
         val wellnessRows = if (showAllWellness) validWellness else recentWellness
-        SectionTitle("Wellness", "\${validWellness.size} HARI VALID")
+        SectionTitle("Wellness", "${validWellness.size} HARI VALID")
         if (wellnessRows.isEmpty()) EmptyCard("Belum ada data wellness valid dalam 3 hari terakhir.")
         wellnessRows.forEach { item ->
             InfoCard(
                 RunSenseFormat.strengthDate(item.date),
-                "RHR \${RunSenseFormat.bpm(item.restingHr)} bpm · tidur \${RunSenseFormat.sleepHours(item.sleepHours)} · HRV \${RunSenseFormat.integer(item.hrv)}",
+                "RHR ${RunSenseFormat.bpm(item.restingHr)} bpm · tidur ${RunSenseFormat.sleepHours(item.sleepHours)} · HRV ${RunSenseFormat.integer(item.hrv)}",
                 "TERSIMPAN"
             )
         }
         if (validWellness.size > 3) {
             TextButton(onClick = { showAllWellness = !showAllWellness }, modifier = Modifier.fillMaxWidth()) {
-                Text(if (showAllWellness) "Tampilkan 3 hari terakhir" else "Lihat semua (\${validWellness.size} hari)", color = Lime)
+                Text(if (showAllWellness) "Tampilkan 3 hari terakhir" else "Lihat semua (${validWellness.size} hari)", color = Lime)
             }
         }
         OutlinedButton(onClick = onWellness) { Text("＋ Catat wellness hari ini") }
@@ -1458,9 +1439,9 @@ private fun HomeWeatherSummary(weather: WeatherSnapshot?, onRefresh: () -> Unit)
                 Text("CUACA HARI INI", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 val summary = when {
                     weather == null -> "Belum tersedia"
-                    weather.temperatureC >= 30.0 -> "\${RunSenseFormat.decimal(weather.temperatureC, 1)}°C · Longgarkan pace"
-                    weather.precipitationMm >= 0.3 -> "\${RunSenseFormat.decimal(weather.temperatureC, 1)}°C · Waspadai hujan"
-                    else -> "\${RunSenseFormat.decimal(weather.temperatureC, 1)}°C · Kondisi relatif nyaman"
+                    weather.temperatureC >= 30.0 -> "${RunSenseFormat.decimal(weather.temperatureC, 1)}°C · Longgarkan pace"
+                    weather.precipitationMm >= 0.3 -> "${RunSenseFormat.decimal(weather.temperatureC, 1)}°C · Waspadai hujan"
+                    else -> "${RunSenseFormat.decimal(weather.temperatureC, 1)}°C · Kondisi relatif nyaman"
                 }
                 Text(summary, color = White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }

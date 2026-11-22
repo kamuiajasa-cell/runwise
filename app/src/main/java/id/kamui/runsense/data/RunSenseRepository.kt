@@ -108,13 +108,18 @@ class RunSenseRepository(context: Context) {
     }
 
     fun profile(): AthleteProfile = AthleteProfile(
-        prefs.getInt("rhr", 63), prefs.getInt("maxHr", 185), prefs.getInt("lthr", 160),
-        prefs.getInt("ltPace", 390), prefs.getInt("heightCm", 0), prefs.getFloat("weightKg", 0f).toDouble()
+        prefs.getInt("rhr", 63).coerceIn(25, 250), prefs.getInt("maxHr", 185).coerceIn(80, 250),
+        prefs.getInt("lthr", 160).coerceIn(80, 230), prefs.getInt("ltPace", 390).coerceIn(180, 1800),
+        prefs.getInt("heightCm", 0).coerceIn(0, 230),
+        prefs.getFloat("weightKg", 0f).toDouble().takeIf { it.isFinite() && it > 0.0 } ?: 0.0
     )
     fun saveProfile(p: AthleteProfile) {
-        prefs.edit().putInt("rhr", p.restingHr).putInt("maxHr", p.maxHr).putInt("lthr", p.thresholdHr)
-            .putInt("ltPace", p.thresholdPaceSecPerKm).putInt("heightCm", p.heightCm.coerceIn(0, 230))
-            .putFloat("weightKg", p.weightKg.toFloat().coerceIn(0f, 250f)).apply()
+        val weight = p.weightKg.takeIf { it.isFinite() && it > 0.0 }?.coerceAtMost(250.0) ?: 0.0
+        prefs.edit().putInt("rhr", p.restingHr.coerceIn(25, 250)).putInt("maxHr", p.maxHr.coerceIn(80, 250))
+            .putInt("lthr", p.thresholdHr.coerceIn(80, 230))
+            .putInt("ltPace", p.thresholdPaceSecPerKm.coerceIn(180, 1800))
+            .putInt("heightCm", p.heightCm.coerceIn(0, 230))
+            .putFloat("weightKg", weight.toFloat()).apply()
     }
     fun runWalkSettings(): RunWalkSettings = RunWalkSettings(
         prefs.getBoolean("runwalk_enabled", false),
@@ -195,8 +200,13 @@ class RunSenseRepository(context: Context) {
     fun saveOnboardingComplete() { prefs.edit().putBoolean("onboarding_complete", true).apply() }
 
     fun addActivity(type: String, duration: Double, distance: Double, hr: Int, load: Double, quality: Boolean, rpe: Int = 0, feel: String = "", pain: Int = 0) {
+        if (!duration.isFinite() || duration <= 0.0 || !distance.isFinite() || distance < 0.0) return
+        val safeLoad = load.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
         val a = readArray("activities")
-        a.put(JSONObject().put("id", UUID.randomUUID().toString()).put("startedAt", System.currentTimeMillis()).put("type", type).put("durationMin", duration).put("distanceKm", distance).put("averageHr", hr).put("externalLoad", load).put("quality", quality).put("rpe", rpe.coerceIn(0, 10)).put("feel", feel).put("pain", pain.coerceIn(0, 10)))
+        a.put(JSONObject().put("id", UUID.randomUUID().toString()).put("startedAt", System.currentTimeMillis())
+            .put("type", type.ifBlank { "run" }).put("durationMin", duration).put("distanceKm", distance)
+            .put("averageHr", hr.coerceIn(0, 250)).put("externalLoad", safeLoad).put("quality", quality)
+            .put("rpe", rpe.coerceIn(0, 10)).put("feel", feel).put("pain", pain.coerceIn(0, 10)))
         writeArray("activities", a)
     }
 
@@ -216,8 +226,13 @@ class RunSenseRepository(context: Context) {
     }
 
     fun addStrength(category: String, duration: Int, level: Int, completed: Boolean, exercise: String = "", sets: Int = 0, reps: Int = 0, resistanceKg: Double = 0.0) {
+        if (duration !in 0..720) return
+        val resistance = resistanceKg.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
         val a = readArray("strength")
-        a.put(JSONObject().put("id", UUID.randomUUID().toString()).put("date", dateFormat.format(Date())).put("category", category).put("durationMin", duration).put("level", level).put("completed", completed).put("exercise", exercise).put("sets", sets.coerceAtLeast(0)).put("reps", reps.coerceAtLeast(0)).put("resistanceKg", resistanceKg.coerceAtLeast(0.0)))
+        a.put(JSONObject().put("id", UUID.randomUUID().toString()).put("date", dateFormat.format(Date()))
+            .put("category", category.ifBlank { "full" }).put("durationMin", duration).put("level", level.coerceIn(0, 10))
+            .put("completed", completed).put("exercise", exercise).put("sets", sets.coerceAtLeast(0))
+            .put("reps", reps.coerceAtLeast(0)).put("resistanceKg", resistance))
         writeArray("strength", a)
     }
 
@@ -264,13 +279,13 @@ class RunSenseRepository(context: Context) {
                 val day = key.toIntOrNull() ?: continue
                 val item = planJson.optJSONObject(key) ?: continue
                 val title = item.optString("title").trim()
-                if (title.isNotBlank()) plan[day] = com.runnow.domain.PlanDay(title, item.optDouble("km", 0.0).coerceAtLeast(0.0))
+                if (title.isNotBlank()) plan[day] = com.runnow.domain.PlanDay(title, item.optDouble("km", 0.0).takeIf { it.isFinite() && it >= 0.0 } ?: 0.0)
             }
             com.runnow.domain.Settings(
                 style = root.optString("style", "moderate"),
                 plan = plan,
                 race = root.optString("race", ""),
-                raceDist = root.optDouble("raceDist", 0.0).coerceAtLeast(0.0),
+                raceDist = root.optDouble("raceDist", 0.0).takeIf { it.isFinite() && it >= 0.0 } ?: 0.0,
                 raceGoal = root.optString("raceGoal", ""),
                 goal = root.optString("goal", "5K"),
             )
@@ -280,13 +295,13 @@ class RunSenseRepository(context: Context) {
     fun savePlanSettings(settings: com.runnow.domain.Settings) {
         val plan = JSONObject()
         settings.plan.forEach { (day, item) ->
-            plan.put(day.toString(), JSONObject().put("title", item.t).put("km", item.km))
+            plan.put(day.toString(), JSONObject().put("title", item.t).put("km", item.km.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0))
         }
         val json = JSONObject()
             .put("style", settings.style)
             .put("plan", plan)
             .put("race", settings.race)
-            .put("raceDist", settings.raceDist)
+            .put("raceDist", settings.raceDist.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0)
             .put("raceGoal", settings.raceGoal)
             .put("goal", settings.goal)
         prefs.edit().putString("plan_settings", json.toString()).apply()

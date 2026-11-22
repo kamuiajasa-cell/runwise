@@ -208,7 +208,7 @@ internal fun ProgressScreen(
     val durabilityStreams by produceState<Map<String, List<RawStreamPoint>>>(emptyMap(), durabilityIds) {
         value = withContext(Dispatchers.IO) { durabilityIds.associateWith { repository.streamPoints(it) } }
     }
-    val durability by produceState(initialValue = emptyList<DurSample>(), key1 = validRuns, key2 = snapshot, key3 = durabilityStreams) {
+    val durability by produceState(initialValue = emptyList<DurSample>(), key1 = Triple(validRuns, snapshot, durabilityStreams)) {
         value = withContext(Dispatchers.Default) {
             validRuns.filter { it.distanceKm >= 5 || it.durationMin >= 40 }.mapNotNull { activity ->
                 val act = actsById[activity.id] ?: return@mapNotNull null

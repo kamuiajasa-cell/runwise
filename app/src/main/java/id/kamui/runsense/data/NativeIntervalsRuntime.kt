@@ -97,6 +97,8 @@ class NativeIntervalsRuntime(context: Context) {
 
     fun hasApiKey(): Boolean = !domain.apiKey.isNullOrBlank()
 
+    fun apiKeyLastFour(): String? = domain.apiKey?.takeIf { it.isNotBlank() }?.takeLast(4)
+
     fun snapshot(): Snapshot = domain.data.snapshot(System.currentTimeMillis(), ZoneId.systemDefault())
 
     fun streamPoints(activityId: String) = local.streamPoints(activityId)

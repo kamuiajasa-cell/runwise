@@ -37,8 +37,11 @@ jobs:
         run: gradle :data:test --tests com.runnow.data.JsonTest --tests com.runnow.data.WatchImportCodecTest --no-daemon
       - name: Run app unit tests
         run: gradle :app:testDebugUnitTest --no-daemon
+      - name: Run Android lint (report only)
+        continue-on-error: true
+        run: gradle :app:lintDebug --no-daemon
       - name: Build native debug APK
-        run: gradle :app:assembleDebug --no-daemon
+        run: gradle :app:assembleDebug --no-daemon -PVERSION_CODE=${{ github.run_number }}
       - uses: actions/upload-artifact@v4
         with:
           name: RunSense-native-debug-apk

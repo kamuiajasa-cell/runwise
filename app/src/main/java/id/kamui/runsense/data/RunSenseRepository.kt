@@ -13,6 +13,17 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
+internal fun positiveFiniteOrNull(value: Double): Double? =
+    value.takeIf { it.isFinite() && it > 0.0 }
+
+private fun sanitizeWellnessJson(item: JSONObject) {
+    val sleepHours = positiveFiniteOrNull(item.optDouble("sleepHours", 0.0))
+    if (sleepHours == null) item.remove("sleepHours") else item.put("sleepHours", sleepHours)
+
+    val hrv = positiveFiniteOrNull(item.optDouble("hrv", 0.0))
+    if (hrv == null) item.remove("hrv") else item.put("hrv", hrv)
+}
+
 class RunSenseRepository(context: Context) {
     private val appContext = context.applicationContext
     private val prefs = context.getSharedPreferences("runsense_native_v1", Context.MODE_PRIVATE)
@@ -27,7 +38,14 @@ class RunSenseRepository(context: Context) {
     }.sortedByDescending { it.date }
 
     fun wellness(): List<WellnessRecord> = objects("wellness").mapNotNull { o ->
-        try { WellnessRecord(o.getString("date"), o.optInt("restingHr"), o.optDouble("sleepHours"), o.optDouble("hrv")) } catch (_: Exception) { null }
+        try {
+            WellnessRecord(
+                o.getString("date"),
+                o.optInt("restingHr"),
+                positiveFiniteOrNull(o.optDouble("sleepHours", 0.0)) ?: 0.0,
+                positiveFiniteOrNull(o.optDouble("hrv", 0.0)) ?: 0.0,
+            )
+        } catch (_: Exception) { null }
     }.sortedBy { it.date }
 
     fun profile(): AthleteProfile = AthleteProfile(
@@ -139,7 +157,10 @@ class RunSenseRepository(context: Context) {
     fun addWellness(rhr: Int, sleep: Double, hrv: Double) {
         val date = dateFormat.format(Date()); val old = readArray("wellness"); val next = JSONArray()
         for (i in 0 until old.length()) { val o = old.optJSONObject(i) ?: continue; if (o.optString("date") != date) next.put(o) }
-        next.put(JSONObject().put("date", date).put("restingHr", rhr).put("sleepHours", sleep).put("hrv", hrv))
+        val record = JSONObject().put("date", date).put("restingHr", rhr)
+        positiveFiniteOrNull(sleep)?.let { record.put("sleepHours", it) }
+        positiveFiniteOrNull(hrv)?.let { record.put("hrv", it) }
+        next.put(record)
         writeArray("wellness", next)
     }
 
@@ -274,13 +295,16 @@ class RunSenseRepository(context: Context) {
         for (i in 0 until oldWell.length()) {
             val item = oldWell.optJSONObject(i) ?: continue
             val date = item.optString("date")
-            if (date.isNotBlank()) byDate[date] = item
+            if (date.isNotBlank()) {
+                sanitizeWellnessJson(item)
+                byDate[date] = item
+            }
         }
         incomingWellness.forEach { w ->
             val item = byDate[w.id] ?: JSONObject().put("date", w.id)
             if (w.restingHR > 0) item.put("restingHr", w.restingHR.toInt())
-            if (w.sleepSecs > 0) item.put("sleepHours", w.sleepSecs / 3600.0)
-            if (w.hrv > 0) item.put("hrv", w.hrv)
+            positiveFiniteOrNull(w.sleepSecs / 3600.0)?.let { item.put("sleepHours", it) }
+            positiveFiniteOrNull(w.hrv)?.let { item.put("hrv", it) }
             byDate[w.id] = item
         }
         val mergedWell = JSONArray()
@@ -351,7 +375,10 @@ class RunSenseRepository(context: Context) {
         for (i in 0 until oldWell.length()) {
             val item = oldWell.optJSONObject(i) ?: continue
             val date = item.optString("date")
-            if (date.isNotBlank()) byDate[date] = item
+            if (date.isNotBlank()) {
+                sanitizeWellnessJson(item)
+                byDate[date] = item
+            }
         }
         val incomingWell = root.optJSONArray("wellness") ?: JSONArray()
         for (i in 0 until incomingWell.length()) {
@@ -360,8 +387,13 @@ class RunSenseRepository(context: Context) {
             if (date.isBlank()) continue
             val dest = byDate[date] ?: JSONObject().put("date", date)
             if (item.has("restingHR")) dest.put("restingHr", item.optDouble("restingHR").toInt())
-            if (item.has("sleepSecs")) dest.put("sleepHours", item.optDouble("sleepSecs") / 3600.0)
-            if (item.has("hrv")) dest.put("hrv", item.optDouble("hrv"))
+            if (item.has("sleepSecs")) {
+                val sleepSecs = item.optDouble("sleepSecs", 0.0)
+                positiveFiniteOrNull(sleepSecs / 3600.0)?.let { dest.put("sleepHours", it) }
+            }
+            if (item.has("hrv")) {
+                positiveFiniteOrNull(item.optDouble("hrv", 0.0))?.let { dest.put("hrv", it) }
+            }
             byDate[date] = dest
         }
         val mergedWell = JSONArray()

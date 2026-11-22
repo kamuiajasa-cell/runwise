@@ -244,7 +244,7 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
                     weatherMessage = "Cuaca diperbarui dari Open-Meteo."
                     revision++
                 } catch (e: Exception) {
-                    weatherMessage = e.message ?: "Cuaca belum tersedia."
+                    weatherMessage = "Cuaca belum dapat diperbarui. Pastikan izin lokasi aktif dan koneksi internet tersedia."
                 }
             }
         } else weatherMessage = "Izin lokasi ditolak. Cuaca belum dapat diperbarui."
@@ -259,14 +259,13 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
                     weatherMessage = "Cuaca diperbarui dari Open-Meteo."
                     revision++
                 } catch (e: Exception) {
-                    weatherMessage = e.message ?: "Cuaca belum tersedia."
+                    weatherMessage = "Cuaca belum dapat diperbarui. Pastikan izin lokasi aktif dan koneksi internet tersedia."
                 }
             }
         } else weatherPermission.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION))
     }
     LaunchedEffect(Unit) {
-        val permitted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val permitted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         if (permitted && (weather == null || System.currentTimeMillis() - weather.fetchedAt > 6 * 60 * 60 * 1000L)) refreshWeather()
     }
     fun changed() { revision++ }

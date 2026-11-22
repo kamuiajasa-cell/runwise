@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import id.kamui.runsense.data.RunSenseRepository
 import id.kamui.runsense.data.NativeIntervalsRuntime
+import id.kamui.runsense.data.CoachClimateInsight
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -224,6 +225,16 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
     val baseSnapshot = dashboard?.snapshot
     val summary = dashboard?.summary ?: TrainingEngine.summarize(emptyList(), emptyList(), emptyList(), profile)
     val domainResult = dashboard?.analysis
+    var coachClimateInsight by remember { mutableStateOf<CoachClimateInsight?>(null) }
+    LaunchedEffect(selected, revision, weather?.fetchedAt, domainResult?.recommendation?.duration) {
+        if (selected == RunTab.COACH && weather != null) {
+            coachClimateInsight = null
+            val plannedMinutes = Regex("\\d+").find(domainResult?.recommendation?.duration.orEmpty())?.value?.toIntOrNull() ?: 30
+            coachClimateInsight = withContext(Dispatchers.IO) {
+                runCatching { intervals.coachClimateInsight(plannedMinutes, weather) }.getOrNull()
+            }
+        }
+    }
     val hasIntervalsKey = dashboard?.hasIntervalsKey == true
     LaunchedEffect(dashboard) {
         val data = dashboard ?: return@LaunchedEffect
@@ -237,7 +248,7 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
             syncBusy = true
             syncMessage = "Sinkron otomatis Intervals.icu…"
             try {
-                syncMessage = withContext(Dispatchers.IO) { intervals.sync() }
+                syncMessage = withContext(Dispatchers.IO) { intervals.sync().also { runCatching { intervals.refreshClimateContext() } } }
                 revision++
             } catch (e: Exception) {
                 syncMessage = "Sinkron otomatis belum berhasil. Periksa koneksi lalu coba lagi."
@@ -269,7 +280,7 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
             scope.launch {
                 weatherMessage = "Memuat cuaca dari lokasi perangkat…"
                 try {
-                    withContext(Dispatchers.IO) { repository.fetchCurrentWeather() }
+                    withContext(Dispatchers.IO) { repository.fetchCurrentWeather(); runCatching { intervals.refreshClimateContext() } }
                     weatherMessage = "Cuaca diperbarui dari Open-Meteo."
                     revision++
                 } catch (e: Exception) {
@@ -322,7 +333,7 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
                     activities, summary, domainResult, baseSnapshot, repository, strength, profile, Modifier,
                     onCheckin = { checkinActivity = it }
                 )
-                RunTab.COACH -> SubPage("Coach", { selected = RunTab.PROFILE }) { CoachScreen(activities, summary, strength, strengthTarget, parqAnswers, domainResult, baseSnapshot, planSettings, weather, weatherMessage, Modifier, onRefreshWeather = { refreshWeather() }, onWorkout = { showWorkoutComposer = true }) }
+                RunTab.COACH -> SubPage("Coach", { selected = RunTab.PROFILE }) { CoachScreen(activities, summary, strength, strengthTarget, parqAnswers, domainResult, baseSnapshot, planSettings, weather, weatherMessage, coachClimateInsight, Modifier, onRefreshWeather = { refreshWeather() }, onWorkout = { showWorkoutComposer = true }) }
                 RunTab.WATCH -> SubPage("Jam & koneksi", { selected = RunTab.PROFILE }) { WatchScreen(Modifier) { json ->
                     if (!syncBusy) scope.launch {
                         syncBusy = true

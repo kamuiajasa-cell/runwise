@@ -6,7 +6,7 @@ RunSense Android is a **native Kotlin + Jetpack Compose application**. It does n
 
 - Native Compose UI matched to `runsense.html`: navy/green palette, floating pill bottom navigation with four icon tabs (Hari Ini, Riwayat, Progres, Saya), editorial page heroes, filter docks, stat tiles, and grouped settings cards. Coach and Jam open from Saya with a back bar.
 - Native local activity, strength, wellness, and athlete-profile entry with persistent local storage, including age for the domain athlete profile.
-- Strength logging is exercise-specific: timed/isometric movements (e.g. plank, side plank, wall sit) record duration only; dynamic movements record sets × repetitions only. Coach load and progression use the selected dose type without double-counting the other measure; legacy logs remain readable.
+- Strength logging is exercise-specific: timed/isometric movements (e.g. plank, side plank, wall sit) record duration in minutes only; dynamic movements record sets × repetitions only. Coach load and progression use the selected dose type without double-counting the other measure; legacy logs remain readable.
 - The original RunSense Kotlin domain engine is ported into `:domain`: capacity/stage estimation, LTHR/LT pace, readiness, autonomic checks, session classification, daily Coach design, workout steps, stream analysis, and review logic.
 - Coach UI consumes `Snapshot.processData()`, including stage, threshold estimates, 5K estimate, and today's recommendation.
 - The native data module (`:data`) includes RunSense-compatible JSON codecs, Intervals.icu ingestion, Huawei watch import, stream summaries, and repository persistence.

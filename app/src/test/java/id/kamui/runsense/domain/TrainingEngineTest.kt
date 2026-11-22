@@ -125,6 +125,29 @@ class TrainingEngineTest {
         assertEquals("TINJAU ULANG SESI", advice?.status)
     }
 
+
+    @Test fun strengthSuggestionOnlyProgressesAfterTwoCompletedSessions() {
+        val history = listOf(
+            StrengthRecord("one", "2026-11-20", "leg", 20, 1, true, "Squat", 3, 10, 0.0),
+            StrengthRecord("two", "2026-11-21", "leg", 20, 1, true, "Squat", 3, 10, 0.0)
+        )
+        val suggestion = TrainingEngine.suggestStrength("Squat", history)
+        assertEquals(3, suggestion.sets)
+        assertEquals(11, suggestion.reps)
+        assertEquals(1, suggestion.level)
+    }
+
+    @Test fun skippedStrengthSessionDoesNotAdvanceProgression() {
+        val history = listOf(
+            StrengthRecord("one", "2026-11-20", "leg", 20, 2, true, "Squat", 3, 10, 0.0),
+            StrengthRecord("skip", "2026-11-21", "leg", 20, 2, false, "Squat", 3, 10, 0.0)
+        )
+        val suggestion = TrainingEngine.suggestStrength("Squat", history)
+        assertEquals(1, suggestion.level)
+        assertEquals(2, suggestion.sets)
+        assertEquals(8, suggestion.reps)
+    }
+
     @Test fun completedLegStrengthFlagsUpcomingQualitySession() {
         val planned = java.time.LocalDate.now().plusDays(2)
         val strength = listOf(StrengthRecord("s", planned.minusDays(1).toString(), "leg", 30, 3, true))

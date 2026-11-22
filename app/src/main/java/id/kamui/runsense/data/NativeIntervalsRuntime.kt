@@ -191,7 +191,7 @@ class NativeIntervalsRuntime(context: Context) {
         }
         val imported = local.importDomainRecords(domain.data.acts, domain.data.wellness)
         return buildString {
-            append(result.message.ifBlank { if (result.ok) "Sinkron selesai" else "Belum ada hasil sinkron" })
+            append(if (result.ok) result.message.ifBlank { "Sinkron selesai" } else "Sinkron belum berhasil. Periksa API key dan koneksi internet.")
             if (result.ok) append(" · ${imported.first} aktivitas baru · ${imported.second} hari wellness diperbarui · $streamsLoaded stream lari tersimpan")
         }
     }

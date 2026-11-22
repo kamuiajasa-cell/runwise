@@ -156,7 +156,11 @@ class RunSenseRepository(context: Context) {
 
     fun addWellness(rhr: Int, sleep: Double, hrv: Double) {
         val date = dateFormat.format(Date()); val old = readArray("wellness"); val next = JSONArray()
-        for (i in 0 until old.length()) { val o = old.optJSONObject(i) ?: continue; if (o.optString("date") != date) next.put(o) }
+        for (i in 0 until old.length()) {
+            val o = old.optJSONObject(i) ?: continue
+            sanitizeWellnessJson(o)
+            if (o.optString("date") != date) next.put(o)
+        }
         val record = JSONObject().put("date", date).put("restingHr", rhr)
         positiveFiniteOrNull(sleep)?.let { record.put("sleepHours", it) }
         positiveFiniteOrNull(hrv)?.let { record.put("hrv", it) }

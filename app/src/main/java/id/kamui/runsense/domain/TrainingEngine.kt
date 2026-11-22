@@ -2,7 +2,7 @@ package id.kamui.runsense.domain
 
 import kotlin.math.roundToInt
 
-data class AthleteProfile(val restingHr: Int = 63, val maxHr: Int = 185, val thresholdHr: Int = 160, val thresholdPaceSecPerKm: Int = 390, val heightCm: Int = 0, val weightKg: Double = 0.0)
+data class AthleteProfile(val restingHr: Int = 63, val maxHr: Int = 185, val thresholdHr: Int = 160, val thresholdPaceSecPerKm: Int = 390, val heightCm: Int = 0, val weightKg: Double = 0.0, val ageYears: Int = 0)
 data class ActivityRecord(val id: String, val startedAt: Long, val type: String, val durationMin: Double, val distanceKm: Double, val averageHr: Int, val externalLoad: Double = 0.0, val quality: Boolean = false, val rpe: Int = 0, val feel: String = "", val pain: Int = 0)
 data class StrengthRecord(val id: String, val date: String, val category: String, val durationMin: Int, val level: Int, val completed: Boolean, val exercise: String = "", val sets: Int = 0, val reps: Int = 0, val resistanceKg: Double = 0.0)
 data class WellnessRecord(val date: String, val restingHr: Int = 0, val sleepHours: Double = 0.0, val hrv: Double = 0.0)

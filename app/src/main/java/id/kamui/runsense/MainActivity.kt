@@ -88,6 +88,23 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private data class NativeDashboard(
+    val profile: AthleteProfile,
+    val activities: List<ActivityRecord>,
+    val strength: List<StrengthRecord>,
+    val wellness: List<WellnessRecord>,
+    val runWalk: RunWalkSettings,
+    val planSettings: com.runnow.domain.Settings,
+    val strengthTarget: Int,
+    val parqAnswers: List<Boolean?>,
+    val weather: WeatherSnapshot?,
+    val snapshot: Snapshot?,
+    val summary: TrainingSummary,
+    val analysis: NativeAnalysis?,
+    val onboardingComplete: Boolean,
+    val hasIntervalsKey: Boolean
+)
+
 private enum class RunTab(val label: String, val mark: String) {
     HOME("Beranda", "⌂"), TRAINING("Riwayat", "◷"), PROGRESS("Progress", "↗"),
     PROFILE("Saya", "◎"), COACH("Coach", "✦"), WATCH("Jam", "⌚")
@@ -99,7 +116,7 @@ private val primaryTabs = listOf(RunTab.HOME, RunTab.TRAINING, RunTab.PROGRESS, 
 private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeIntervalsRuntime) {
     var selected by rememberSaveable { mutableStateOf(RunTab.HOME) }
     var lightTheme by remember { mutableStateOf(repository.isLightTheme()) }
-    var onboarding by remember { mutableStateOf(!repository.onboardingComplete() && !intervals.hasApiKey() && repository.activities().isEmpty() && repository.wellness().isEmpty()) }
+    var onboarding by remember { mutableStateOf(false) }
     var revision by remember { mutableIntStateOf(0) }
     var showActivity by remember { mutableStateOf(false) }
     var showStrength by remember { mutableStateOf(false) }
@@ -130,7 +147,42 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
     }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val weather = remember(revision) { repository.currentWeather() }
+    val dashboard by produceState<NativeDashboard?>(initialValue = null, key1 = revision) {
+        value = withContext(Dispatchers.Default) {
+            val profile = repository.profile()
+            val activities = repository.activities()
+            val strength = repository.strength()
+            val wellness = repository.wellness()
+            val runWalk = repository.runWalkSettings()
+            val planSettings = repository.planSettings()
+            val weather = repository.currentWeather()
+            val snapshot = runCatching { intervals.snapshot() }.getOrNull()
+            val summary = TrainingEngine.summarize(activities, strength, wellness, profile)
+            val analysis = runCatching {
+                nativeRunSenseAnalysis(activities, strength, wellness, profile, snapshot, planSettings, runWalk, (weather?.temperatureC ?: 0.0) >= 30.0)
+            }.getOrNull()
+            NativeDashboard(profile, activities, strength, wellness, runWalk, planSettings,
+                repository.weeklyStrengthTarget(), repository.parqAnswers(), weather, snapshot,
+                summary, analysis, repository.onboardingComplete(), intervals.hasApiKey())
+        }
+    }
+    val profile = dashboard?.profile ?: AthleteProfile()
+    val activities = dashboard?.activities.orEmpty()
+    val strength = dashboard?.strength.orEmpty()
+    val wellness = dashboard?.wellness.orEmpty()
+    val runWalk = dashboard?.runWalk ?: RunWalkSettings()
+    val planSettings = dashboard?.planSettings ?: com.runnow.domain.Settings()
+    val strengthTarget = dashboard?.strengthTarget ?: 2
+    val parqAnswers = dashboard?.parqAnswers ?: List(7) { null }
+    val weather = dashboard?.weather
+    val baseSnapshot = dashboard?.snapshot
+    val summary = dashboard?.summary ?: TrainingEngine.summarize(emptyList(), emptyList(), emptyList(), profile)
+    val domainResult = dashboard?.analysis
+    val hasIntervalsKey = dashboard?.hasIntervalsKey == true
+    LaunchedEffect(dashboard) {
+        val data = dashboard ?: return@LaunchedEffect
+        onboarding = !data.onboardingComplete && !data.hasIntervalsKey && data.activities.isEmpty() && data.wellness.isEmpty()
+    }
     var weatherMessage by remember { mutableStateOf("") }
     val weatherPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
         if (grants.values.any { it }) {
@@ -171,17 +223,6 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         if (permitted && (weather == null || System.currentTimeMillis() - weather.fetchedAt > 6 * 60 * 60 * 1000L)) refreshWeather()
     }
-    val profile = remember(revision) { repository.profile() }
-    val runWalk = remember(revision) { repository.runWalkSettings() }
-    val planSettings = remember(revision) { repository.planSettings() }
-    val activities = remember(revision) { repository.activities() }
-    val strength = remember(revision) { repository.strength() }
-    val wellness = remember(revision) { repository.wellness() }
-    val strengthTarget = remember(revision) { repository.weeklyStrengthTarget() }
-    val parqAnswers = remember(revision) { repository.parqAnswers() }
-    val summary = remember(revision) { TrainingEngine.summarize(activities, strength, wellness, profile) }
-    val baseSnapshot = remember(revision) { runCatching { intervals.snapshot() }.getOrNull() }
-    val domainResult = remember(revision) { runCatching { nativeRunSenseAnalysis(activities, strength, wellness, profile, baseSnapshot, planSettings, runWalk, (weather?.temperatureC ?: 0.0) >= 30.0) }.getOrNull() }
     fun changed() { revision++ }
     SideEffect {
         applyRunSenseTheme(lightTheme)
@@ -226,7 +267,7 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
                     onRunWalk = { repository.saveRunWalkSettings(it); changed() },
                     onTheme = { lightTheme = it; repository.saveLightTheme(it) },
                     onStyle = { style -> repository.savePlanSettings(planSettings.copy(style = style)); changed() },
-                    hasIntervalsKey = intervals.hasApiKey(), syncBusy = syncBusy, syncMessage = syncMessage,
+                    hasIntervalsKey = hasIntervalsKey, syncBusy = syncBusy, syncMessage = syncMessage,
                     onProfile = { showProfile = true }, onWellness = { showWellness = true }, onPlanRace = { showPlanRace = true },
                     strengthTarget = strengthTarget, parqAnswers = parqAnswers,
                     onStrengthTarget = { showStrengthTarget = true }, onParq = { showParq = true },

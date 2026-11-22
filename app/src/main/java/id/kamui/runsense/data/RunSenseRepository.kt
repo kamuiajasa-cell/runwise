@@ -98,10 +98,13 @@ class RunSenseRepository(context: Context) {
             val sleep = finitePositive(source, "sleepHours")
             val hrv = finitePositive(source, "hrv")
             if (rhr == 0 && sleep == null && hrv == null) { changed = true; continue }
-            val item = JSONObject(source.toString())
-            if (rhr == 0 && item.has("restingHr")) { item.remove("restingHr"); changed = true }
-            if (sleep == null && item.has("sleepHours")) { item.remove("sleepHours"); changed = true }
-            if (hrv == null && item.has("hrv")) { item.remove("hrv"); changed = true }
+            val item = JSONObject().put("date", date)
+            if (rhr > 0) item.put("restingHr", rhr)
+            if (sleep != null) item.put("sleepHours", sleep)
+            if (hrv != null) item.put("hrv", hrv)
+            if ((source.optInt("restingHr", 0) != rhr) ||
+                (source.has("sleepHours") && sleep == null) ||
+                (source.has("hrv") && hrv == null)) changed = true
             cleaned.put(item)
             records += WellnessRecord(date, rhr, sleep ?: 0.0, hrv ?: 0.0)
         }

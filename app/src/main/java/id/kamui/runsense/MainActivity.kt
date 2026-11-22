@@ -321,7 +321,20 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
                     onCheckin = { checkinActivity = it }
                 )
                 RunTab.COACH -> CoachScreen(activities, summary, strength, strengthTarget, parqAnswers, domainResult, baseSnapshot, planSettings, weather, weatherMessage, Modifier.padding(padding), onRefreshWeather = { refreshWeather() }, onWorkout = { showWorkoutComposer = true })
-                RunTab.WATCH -> WatchScreen(Modifier.padding(padding)) { json -> repository.importWatchJson(json); intervals.ingestWatchJson(json); changed() }
+                RunTab.WATCH -> WatchScreen(Modifier.padding(padding)) { json ->
+                    if (!syncBusy) scope.launch {
+                        syncBusy = true
+                        syncMessage = "Mengimpor data Huawei…"
+                        try {
+                            withContext(Dispatchers.IO) { repository.importWatchJson(json) }
+                            withContext(Dispatchers.Default) { intervals.ingestWatchJson(json) }
+                            changed()
+                            syncMessage = "Data Huawei berhasil digabung ke riwayat lokal."
+                        } catch (e: Exception) {
+                            syncMessage = "Impor Huawei belum berhasil. Periksa file ekspor dan coba lagi."
+                        } finally { syncBusy = false }
+                    }
+                }
                 RunTab.PROFILE -> SettingsScreen(
                     profile, wellness, Modifier.padding(padding),
                     onCoach = { selected = RunTab.COACH }, onWatch = { selected = RunTab.WATCH },

@@ -102,7 +102,8 @@ private data class NativeDashboard(
     val summary: TrainingSummary,
     val analysis: com.runnow.domain.ProcessResult?,
     val onboardingComplete: Boolean,
-    val hasIntervalsKey: Boolean
+    val hasIntervalsKey: Boolean,
+    val lastSyncAt: Long
 )
 
 private enum class RunTab(val label: String, val mark: String) {
@@ -129,6 +130,7 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
     var showWorkoutComposer by remember { mutableStateOf(false) }
     var checkinActivity by remember { mutableStateOf<ActivityRecord?>(null) }
     var syncBusy by remember { mutableStateOf(false) }
+    var autoSyncStarted by rememberSaveable { mutableStateOf(false) }
     var syncMessage by remember { mutableStateOf("") }
     BackHandler(enabled = selected != RunTab.HOME || showActivity || showStrength || showStrengthTarget || showParq || showWellness || showProfile || showApiKey || showPlanRace || showWorkoutComposer || checkinActivity != null) {
         when {
@@ -189,7 +191,7 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
             }.getOrNull()
             NativeDashboard(profile, activities, strength, wellness, runWalk, planSettings,
                 repository.weeklyStrengthTarget(), repository.parqAnswers(), weather, snapshot,
-                summary, analysis, repository.onboardingComplete(), intervals.hasApiKey())
+                summary, analysis, repository.onboardingComplete(), intervals.hasApiKey(), repository.lastSyncAt())
         }
     }
     val profile = dashboard?.profile ?: AthleteProfile()
@@ -208,6 +210,21 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
     LaunchedEffect(dashboard) {
         val data = dashboard ?: return@LaunchedEffect
         onboarding = !data.onboardingComplete && !data.hasIntervalsKey && data.activities.isEmpty() && data.wellness.isEmpty()
+    }
+    LaunchedEffect(dashboard?.hasIntervalsKey) {
+        val data = dashboard ?: return@LaunchedEffect
+        if (data.hasIntervalsKey && !autoSyncStarted &&
+            (data.lastSyncAt == 0L || System.currentTimeMillis() - data.lastSyncAt > 2 * 60 * 60 * 1000L)) {
+            autoSyncStarted = true
+            syncBusy = true
+            syncMessage = "Sinkron otomatis Intervals.icu…"
+            try {
+                syncMessage = withContext(Dispatchers.IO) { intervals.sync() }
+                revision++
+            } catch (e: Exception) {
+                syncMessage = "Sinkron otomatis belum berhasil. Periksa koneksi lalu coba lagi."
+            } finally { syncBusy = false }
+        }
     }
     var weatherMessage by remember { mutableStateOf("") }
     val weatherPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
@@ -278,7 +295,7 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
             }
         ) { padding ->
             when (selected) {
-                RunTab.HOME -> HomeScreen(activities, summary, domainResult, baseSnapshot, planSettings, weather, weatherMessage, Modifier.padding(padding), onAdd = { showActivity = true }, onStrength = { showStrength = true }, onRefreshWeather = { refreshWeather() }, onWorkout = { showWorkoutComposer = true }, onViewAll = { selected = RunTab.TRAINING })
+                RunTab.HOME -> HomeScreen(activities, summary, domainResult, baseSnapshot, planSettings, weather, weatherMessage, dashboard?.lastSyncAt ?: 0L, Modifier.padding(padding), onAdd = { showActivity = true }, onStrength = { showStrength = true }, onRefreshWeather = { refreshWeather() }, onWorkout = { showWorkoutComposer = true }, onViewAll = { selected = RunTab.TRAINING })
                 RunTab.TRAINING -> TrainingScreen(activities, strength, profile, domainResult, baseSnapshot, repository, Modifier.padding(padding), onAdd = { showActivity = true }, onStrength = { showStrength = true }, onCheckin = { checkinActivity = it })
                 RunTab.PROGRESS -> ProgressScreen(
                     activities, summary, domainResult, baseSnapshot, repository, strength, profile, Modifier.padding(padding),
@@ -439,9 +456,13 @@ private fun Page(modifier: Modifier, content: @Composable ColumnScope.() -> Unit
 }
 
 @Composable
-private fun HomeScreen(activities: List<ActivityRecord>, summary: TrainingSummary, domainResult: com.runnow.domain.ProcessResult?, snapshot: Snapshot?, planSettings: com.runnow.domain.Settings, weather: WeatherSnapshot?, weatherMessage: String, modifier: Modifier, onAdd: () -> Unit, onStrength: () -> Unit, onRefreshWeather: () -> Unit, onWorkout: () -> Unit, onViewAll: () -> Unit) {
+private fun HomeScreen(activities: List<ActivityRecord>, summary: TrainingSummary, domainResult: com.runnow.domain.ProcessResult?, snapshot: Snapshot?, planSettings: com.runnow.domain.Settings, weather: WeatherSnapshot?, weatherMessage: String, lastSyncAt: Long, modifier: Modifier, onAdd: () -> Unit, onStrength: () -> Unit, onRefreshWeather: () -> Unit, onWorkout: () -> Unit, onViewAll: () -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { HomePageHero() }
+        item {
+            val syncLabel = if (lastSyncAt > 0L) SimpleDateFormat("dd MMM yyyy · HH:mm", Locale("id", "ID")).format(Date(lastSyncAt)) else "Belum pernah sinkron"
+            Text("Intervals.icu · Sinkron terakhir: " + syncLabel, color = Muted, fontSize = 11.sp)
+        }
         item { HomeWeatherSummary(weather, onRefreshWeather) }
         item { CoachRecommendationCard(domainResult?.recommendation, onWorkout) }
         item { ReadinessCard(summary.readiness ?: domainResult?.athlete?.score, summary.recommendation) }

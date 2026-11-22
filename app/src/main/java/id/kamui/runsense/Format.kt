@@ -73,6 +73,7 @@ object RunSenseFormat {
         "run", "running" -> "Lari"
         "walk", "walking" -> "Jalan"
         "strength", "gym", "weight" -> "Strength"
+        "other", "activity" -> "Aktivitas"
         else -> raw.replaceFirstChar { if (it.isLowerCase()) it.titlecase(idLocale) else it.toString() }
     }
 

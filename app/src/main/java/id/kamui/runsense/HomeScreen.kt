@@ -63,6 +63,7 @@ import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.abs
 
+@Composable
 internal fun HomeScreen(activities: List<ActivityRecord>, summary: TrainingSummary, domainResult: com.runnow.domain.ProcessResult?, snapshot: Snapshot?, planSettings: com.runnow.domain.Settings, weather: WeatherSnapshot?, weatherMessage: String, lastSyncAt: Long, modifier: Modifier, onAdd: () -> Unit, onStrength: () -> Unit, onRefreshWeather: () -> Unit, onWorkout: () -> Unit, onViewAll: () -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { HomePageHero() }
@@ -97,4 +98,3 @@ internal fun HomeScreen(activities: List<ActivityRecord>, summary: TrainingSumma
     }
 }
 
-@Composable

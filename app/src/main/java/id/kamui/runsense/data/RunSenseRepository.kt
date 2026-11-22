@@ -102,9 +102,7 @@ class RunSenseRepository(context: Context) {
             if (rhr > 0) item.put("restingHr", rhr)
             if (sleep != null) item.put("sleepHours", sleep)
             if (hrv != null) item.put("hrv", hrv)
-            if ((source.optInt("restingHr", 0) != rhr) ||
-                (source.has("sleepHours") && sleep == null) ||
-                (source.has("hrv") && hrv == null)) changed = true
+            if (source.toString() != item.toString()) changed = true
             cleaned.put(item)
             records += WellnessRecord(date, rhr, sleep ?: 0.0, hrv ?: 0.0)
         }

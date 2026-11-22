@@ -9,6 +9,7 @@ import android.content.ClipboardManager
 import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -25,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -95,7 +97,7 @@ private val primaryTabs = listOf(RunTab.HOME, RunTab.TRAINING, RunTab.PROGRESS, 
 
 @Composable
 private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeIntervalsRuntime) {
-    var selected by remember { mutableStateOf(RunTab.HOME) }
+    var selected by rememberSaveable { mutableStateOf(RunTab.HOME) }
     var lightTheme by remember { mutableStateOf(repository.isLightTheme()) }
     var onboarding by remember { mutableStateOf(!repository.onboardingComplete() && !intervals.hasApiKey() && repository.activities().isEmpty() && repository.wellness().isEmpty()) }
     var revision by remember { mutableIntStateOf(0) }
@@ -111,6 +113,21 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
     var checkinActivity by remember { mutableStateOf<ActivityRecord?>(null) }
     var syncBusy by remember { mutableStateOf(false) }
     var syncMessage by remember { mutableStateOf("") }
+    BackHandler(enabled = selected != RunTab.HOME || showActivity || showStrength || showStrengthTarget || showParq || showWellness || showProfile || showApiKey || showPlanRace || showWorkoutComposer || checkinActivity != null) {
+        when {
+            checkinActivity != null -> checkinActivity = null
+            showWorkoutComposer -> showWorkoutComposer = false
+            showActivity -> showActivity = false
+            showStrength -> showStrength = false
+            showStrengthTarget -> showStrengthTarget = false
+            showParq -> showParq = false
+            showWellness -> showWellness = false
+            showProfile -> showProfile = false
+            showApiKey -> showApiKey = false
+            showPlanRace -> showPlanRace = false
+            selected != RunTab.HOME -> selected = RunTab.HOME
+        }
+    }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val weather = remember(revision) { repository.currentWeather() }

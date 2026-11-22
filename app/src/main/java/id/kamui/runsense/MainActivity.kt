@@ -100,7 +100,7 @@ private data class NativeDashboard(
     val weather: WeatherSnapshot?,
     val snapshot: Snapshot?,
     val summary: TrainingSummary,
-    val analysis: NativeAnalysis?,
+    val analysis: com.runnow.domain.ProcessResult?,
     val onboardingComplete: Boolean,
     val hasIntervalsKey: Boolean
 )

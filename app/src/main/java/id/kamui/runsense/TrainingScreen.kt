@@ -21,6 +21,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -64,7 +68,7 @@ import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.abs
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 internal fun TrainingScreen(
     activities: List<ActivityRecord>,
     strength: List<StrengthRecord>,
@@ -110,17 +114,33 @@ internal fun TrainingScreen(
     }.toSortedMap(compareByDescending { it })
     val displayedStrength = visibleStrength.take(visibleCount)
 
-    PullToRefreshBox(
-        isRefreshing = isRefreshing,
-        onRefresh = onRefresh,
-        modifier = modifier.fillMaxSize()
-    ) {
+    val pullDistance = remember { mutableFloatStateOf(0f) }
+    val refreshConnection = remember(listState, isRefreshing, onRefresh) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset, source: NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                if (source == NestedScrollSource.UserInput && available.y > 0f &&
+                    listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0) {
+                    pullDistance.floatValue = (pullDistance.floatValue + available.y).coerceAtMost(120f)
+                    if (pullDistance.floatValue >= 72f && !isRefreshing) {
+                        pullDistance.floatValue = 0f
+                        onRefresh()
+                    }
+                } else if (available.y < 0f) pullDistance.floatValue = 0f
+                return androidx.compose.ui.geometry.Offset.Zero
+            }
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                pullDistance.floatValue = 0f
+                return Velocity.Zero
+            }
+        }
+    }
     LazyColumn(
         state = listState,
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().nestedScroll(refreshConnection),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        if (isRefreshing) item { Text("Memperbarui riwayat…", color = Lime, fontSize = 11.sp) }
         item { PageHero("RIWAYAT LATIHAN", "Every session", "has a story.", "Jejak lari, jalan, dan strength dalam satu tempat.") }
         item { RunSenseSegment(mode, listOf("run" to "Lari", "strength" to "Strength"), { mode = it; visibleCount = 20 }) }
         item {
@@ -204,7 +224,6 @@ internal fun TrainingScreen(
             }
         }
     }
-    }
 
     selectedActivity?.let { activity ->
         val domainItem = domainResult?.activities?.firstOrNull {
@@ -236,4 +255,3 @@ internal fun TrainingScreen(
     }
 }
 
-@Composable

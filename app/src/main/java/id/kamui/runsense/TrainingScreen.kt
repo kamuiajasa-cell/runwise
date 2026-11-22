@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -63,6 +64,7 @@ import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.abs
 
+@OptIn(ExperimentalMaterial3Api::class)
 internal fun TrainingScreen(
     activities: List<ActivityRecord>,
     strength: List<StrengthRecord>,
@@ -71,14 +73,17 @@ internal fun TrainingScreen(
     snapshot: Snapshot?,
     repository: RunSenseRepository,
     modifier: Modifier,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
     onAdd: () -> Unit,
     onStrength: () -> Unit,
     onCheckin: (ActivityRecord) -> Unit
 ) {
-    var filter by remember { mutableStateOf("week") }
-    var mode by remember { mutableStateOf("run") }
+    var filter by rememberSaveable { mutableStateOf("week") }
+    var mode by rememberSaveable { mutableStateOf("run") }
     var selectedActivity by remember { mutableStateOf<ActivityRecord?>(null) }
-    var visibleCount by remember { mutableIntStateOf(20) }
+    var visibleCount by rememberSaveable { mutableIntStateOf(20) }
+    val listState = rememberLazyListState()
     val today = java.time.LocalDate.now()
     val monday = today.minusDays((today.dayOfWeek.value - 1).toLong())
     fun inRange(date: java.time.LocalDate): Boolean = when (filter) {
@@ -105,8 +110,14 @@ internal fun TrainingScreen(
     }.toSortedMap(compareByDescending { it })
     val displayedStrength = visibleStrength.take(visibleCount)
 
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = modifier.fillMaxSize()
+    ) {
     LazyColumn(
-        modifier.fillMaxSize(),
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -192,6 +203,7 @@ internal fun TrainingScreen(
                 OutlinedButton(onClick = { visibleCount += 20 }, modifier = Modifier.fillMaxWidth()) { Text("Tampilkan lebih banyak") }
             }
         }
+    }
     }
 
     selectedActivity?.let { activity ->

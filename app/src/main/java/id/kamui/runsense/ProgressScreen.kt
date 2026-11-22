@@ -208,34 +208,38 @@ internal fun ProgressScreen(
     val durabilityStreams by produceState<Map<String, List<RawStreamPoint>>>(emptyMap(), durabilityIds) {
         value = withContext(Dispatchers.IO) { durabilityIds.associateWith { repository.streamPoints(it) } }
     }
-    val durability = validRuns.filter { it.distanceKm >= 5 || it.durationMin >= 40 }.mapNotNull { activity ->
-        val act = actsById[activity.id] ?: return@mapNotNull null
-        val kind = snapshot?.let { it.detectType(act, stage ?: it.stage()).type }
-        if (kind !in setOf("easy", "long")) return@mapNotNull null
-        val points = durabilityStreams[activity.id].orEmpty().filter { it.timeSec.isFinite() && it.speedMps > 0.5 }
-        if (points.size < 30) return@mapNotNull null
-        val start = points.first().timeSec
-        val duration = points.last().timeSec - start
-        if (duration < 2400) return@mapNotNull null
-        fun section(lo: Double, hi: Double) = points.filter {
-            val p = (it.timeSec - start) / duration
-            p >= lo && p < hi
+    val durability by produceState(initialValue = emptyList<DurSample>(), key1 = validRuns, key2 = snapshot, key3 = durabilityStreams) {
+        value = withContext(Dispatchers.Default) {
+            validRuns.filter { it.distanceKm >= 5 || it.durationMin >= 40 }.mapNotNull { activity ->
+                val act = actsById[activity.id] ?: return@mapNotNull null
+                val kind = snapshot?.let { it.detectType(act, stage ?: it.stage()).type }
+                if (kind !in setOf("easy", "long")) return@mapNotNull null
+                val points = durabilityStreams[activity.id].orEmpty().filter { it.timeSec.isFinite() && it.speedMps > 0.5 }
+                if (points.size < 30) return@mapNotNull null
+                val start = points.first().timeSec
+                val duration = points.last().timeSec - start
+                if (duration < 2400) return@mapNotNull null
+                fun section(lo: Double, hi: Double) = points.filter {
+                    val p = (it.timeSec - start) / duration
+                    p >= lo && p < hi
+                }
+                val mid = section(1.0 / 3.0, 2.0 / 3.0)
+                val late = section(2.0 / 3.0, 1.001)
+                if (mid.size < 5 || late.size < 5) return@mapNotNull null
+                val midSpeed = mid.map { it.speedMps }.average()
+                val lateSpeed = late.map { it.speedMps }.average()
+                val midHr = mid.map { it.heartRate }.filter { it > 40 }.takeIf { it.size >= 5 }?.average()
+                val lateHr = late.map { it.heartRate }.filter { it > 40 }.takeIf { it.size >= 5 }?.average()
+                val midPace = 1000.0 / midSpeed / 60.0
+                val latePace = 1000.0 / lateSpeed / 60.0
+                val drift = (latePace - midPace) / midPace * 100
+                val hrDrift = if (midHr != null && lateHr != null) lateHr - midHr else null
+                val midEff = if (midHr != null && midHr > 0) midSpeed / midHr else null
+                val lateEff = if (lateHr != null && lateHr > 0) lateSpeed / lateHr else null
+                val drop = if (midEff != null && lateEff != null && midEff > 0) (midEff - lateEff) / midEff * 100 else null
+                DurSample(activity.startedAt, drift, hrDrift, drop)
+            }
         }
-        val mid = section(1.0 / 3.0, 2.0 / 3.0)
-        val late = section(2.0 / 3.0, 1.001)
-        if (mid.size < 5 || late.size < 5) return@mapNotNull null
-        val midSpeed = mid.map { it.speedMps }.average()
-        val lateSpeed = late.map { it.speedMps }.average()
-        val midHr = mid.map { it.heartRate }.filter { it > 40 }.takeIf { it.size >= 5 }?.average()
-        val lateHr = late.map { it.heartRate }.filter { it > 40 }.takeIf { it.size >= 5 }?.average()
-        val midPace = 1000.0 / midSpeed / 60.0
-        val latePace = 1000.0 / lateSpeed / 60.0
-        val drift = (latePace - midPace) / midPace * 100
-        val hrDrift = if (midHr != null && lateHr != null) lateHr - midHr else null
-        val midEff = if (midHr != null && midHr > 0) midSpeed / midHr else null
-        val lateEff = if (lateHr != null && lateHr > 0) lateSpeed / lateHr else null
-        val drop = if (midEff != null && lateEff != null && midEff > 0) (midEff - lateEff) / midEff * 100 else null
-        DurSample(activity.startedAt, drift, hrDrift, drop)
     }
     val effDrop = median(durability.mapNotNull { it.efficiencyDrop })
     val durabilityDropValue = effDrop ?: 0.0

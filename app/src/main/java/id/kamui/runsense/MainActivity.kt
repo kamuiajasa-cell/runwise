@@ -356,7 +356,7 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
                                 syncMessage = withContext(Dispatchers.IO) { intervals.sync() }
                                 changed()
                             } catch (e: Exception) {
-                                syncMessage = "Gagal sinkron: ${e.message}"
+                                syncMessage = "Sinkronisasi belum berhasil. Periksa API key dan koneksi internet, lalu coba lagi."
                             } finally { syncBusy = false }
                         }
                     }
@@ -384,7 +384,7 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
                             }
                             showWorkoutComposer = false
                         } catch (e: Exception) {
-                            syncMessage = "Gagal mengirim workout: ${e.message}"
+                            syncMessage = "Workout belum berhasil dikirim. Periksa koneksi dan API key Intervals.icu."
                         } finally { syncBusy = false }
                     }
                 }
@@ -418,7 +418,7 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
                     onboarding = false
                     changed()
                 } catch (e: Exception) {
-                    syncMessage = "Gagal sinkron: ${e.message}"
+                    syncMessage = "Sinkronisasi belum berhasil. Periksa API key dan koneksi internet, lalu coba lagi."
                 } finally { syncBusy = false }
             }
         })

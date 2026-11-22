@@ -13,6 +13,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      HAS_RELEASE_SIGNING: ${{ secrets.RUNSENSE_KEYSTORE_BASE64 != '' && secrets.RUNSENSE_STORE_PASSWORD != '' && secrets.RUNSENSE_KEY_ALIAS != '' && secrets.RUNSENSE_KEY_PASSWORD != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,3 +44,30 @@ jobs:
           name: RunSense-native-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+      - name: Restore permanent release keystore
+        if: env.HAS_RELEASE_SIGNING == 'true'
+        env:
+          RUNSENSE_KEYSTORE_BASE64: ${{ secrets.RUNSENSE_KEYSTORE_BASE64 }}
+        run: |
+          echo "$RUNSENSE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/runsense-release.jks"
+          chmod 600 "$RUNNER_TEMP/runsense-release.jks"
+      - name: Build signed release APK
+        if: env.HAS_RELEASE_SIGNING == 'true'
+        env:
+          RUNSENSE_KEYSTORE_FILE: ${{ runner.temp }}/runsense-release.jks
+          RUNSENSE_STORE_PASSWORD: ${{ secrets.RUNSENSE_STORE_PASSWORD }}
+          RUNSENSE_KEY_ALIAS: ${{ secrets.RUNSENSE_KEY_ALIAS }}
+          RUNSENSE_KEY_PASSWORD: ${{ secrets.RUNSENSE_KEY_PASSWORD }}
+        run: |
+          gradle :app:assembleRelease --no-daemon -PVERSION_CODE=${{ github.run_number }} -PVERSION_NAME=2.0.${{ github.run_number }}
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs app/build/outputs/apk/release/app-release.apk
+      - name: Upload signed release APK
+        if: env.HAS_RELEASE_SIGNING == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: RunSense-native-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+      - name: Explain missing release signing secrets
+        if: env.HAS_RELEASE_SIGNING != 'true'
+        run: echo "Release APK skipped. Configure the four RUNSENSE_* GitHub Actions secrets to enable permanent signing."

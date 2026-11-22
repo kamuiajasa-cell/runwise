@@ -117,7 +117,7 @@ internal fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSumm
                     } else {
                         "Target berikutnya: ${suggestion.sets} set × ${suggestion.reps} repetisi"
                     }
-                    InfoCard(exercise, "$target · Level ${suggestion.level}", suggestion.note)
+                    InfoCard(exercise, "$target · Level ${suggestion.level} · ${suggestion.note}", "SARAN COACH")
                 }
             }
             InfoCard("Respons tubuh 7 hari", "$checkins7d check-in lari tercatat", if (checkins7d > 0) "TERCATAT" else "BELUM ADA")

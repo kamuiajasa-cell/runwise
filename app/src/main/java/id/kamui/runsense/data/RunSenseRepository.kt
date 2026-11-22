@@ -142,10 +142,11 @@ class RunSenseRepository(context: Context) {
             val latitude = o.optDouble("latitude", Double.NaN)
             val longitude = o.optDouble("longitude", Double.NaN)
             val fetchedAt = o.optLong("fetchedAt", 0L)
+            val humidity = o.optInt("humidityPct", -1)
+            val code = o.optInt("weatherCode", -1)
             require(listOf(temperature, apparent, wind, precipitation, latitude, longitude).all { it.isFinite() })
-            require(wind >= 0.0 && precipitation >= 0.0 && fetchedAt > 0L)
-            WeatherSnapshot(temperature, apparent, o.optInt("humidityPct").coerceIn(0, 100),
-                wind, precipitation, o.optInt("weatherCode"), fetchedAt, latitude, longitude)
+            require(wind >= 0.0 && precipitation >= 0.0 && fetchedAt > 0L && humidity in 0..100 && code >= 0)
+            WeatherSnapshot(temperature, apparent, humidity, wind, precipitation, code, fetchedAt, latitude, longitude)
         }.getOrNull()
         if (weather == null) prefs.edit().remove("current_weather").apply()
         return weather
@@ -170,16 +171,19 @@ class RunSenseRepository(context: Context) {
         val apparent = current.optDouble("apparent_temperature", temperature)
         val wind = current.optDouble("wind_speed_10m", 0.0)
         val precipitation = current.optDouble("precipitation", 0.0)
-        require(temperature.isFinite() && apparent.isFinite() && wind.isFinite() && precipitation.isFinite()) {
+        val humidity = current.optInt("relative_humidity_2m", -1)
+        val code = current.optInt("weather_code", -1)
+        require(temperature.isFinite() && apparent.isFinite() && wind.isFinite() && precipitation.isFinite() &&
+            wind >= 0.0 && precipitation >= 0.0 && humidity in 0..100 && code >= 0) {
             "Data cuaca dari layanan tidak valid. Coba perbarui beberapa saat lagi."
         }
         val weather = WeatherSnapshot(
             temperature,
             apparent,
-            current.optInt("relative_humidity_2m", 0).coerceIn(0, 100),
-            wind.coerceAtLeast(0.0),
-            precipitation.coerceAtLeast(0.0),
-            current.optInt("weather_code", 0),
+            humidity,
+            wind,
+            precipitation,
+            code,
             System.currentTimeMillis(), location.latitude, location.longitude
         )
         prefs.edit().putString("current_weather", JSONObject()

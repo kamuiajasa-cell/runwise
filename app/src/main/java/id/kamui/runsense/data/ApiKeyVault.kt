@@ -25,7 +25,7 @@ internal class ApiKeyVault(context: Context) {
         // One-time migration from the former plaintext preference.
         val legacy = prefs.getString(legacyKey, null)?.takeIf { it.isNotBlank() } ?: return null
         return runCatching {
-            prefs.edit().putString(encryptedKey, encrypt(legacy)).remove(legacyKey).commit()
+            check(prefs.edit().putString(encryptedKey, encrypt(legacy)).remove(legacyKey).commit())
             legacy
         }.getOrElse { null }
     }

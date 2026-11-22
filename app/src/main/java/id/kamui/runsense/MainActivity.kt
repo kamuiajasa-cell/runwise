@@ -66,13 +66,15 @@ import kotlin.math.abs
 internal var Ink by mutableStateOf(Color(0xFF0A0A0A))
 internal var Panel by mutableStateOf(Color(0xFF1E1E1E))
 internal var Lime by mutableStateOf(Color(0xFFC6FF38))
+internal var OnLime by mutableStateOf(Color(0xFF0A0A0A))
 internal var Muted by mutableStateOf(Color(0xFF9E9E9E))
 internal var White by mutableStateOf(Color(0xFFFAFAFA))
 
 internal fun applyRunSenseTheme(light: Boolean) {
     Ink = if (light) Color(0xFFF1F3ED) else Color(0xFF0A0A0A)
     Panel = if (light) Color(0xFFFFFFFF) else Color(0xFF1E1E1E)
-    Lime = if (light) Color(0xFF4E8D12) else Color(0xFFC6FF38)
+    Lime = if (light) Color(0xFF3A6E0C) else Color(0xFFC6FF38)
+    OnLime = if (light) Color.White else Color(0xFF0A0A0A)
     Muted = if (light) Color(0xFF62695D) else Color(0xFF9E9E9E)
     White = if (light) Color(0xFF171B14) else Color(0xFFFAFAFA)
 }
@@ -278,7 +280,7 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
         }
     }
 
-    MaterialTheme(colorScheme = if (lightTheme) lightColorScheme(primary = Lime, background = Ink, surface = Panel, onPrimary = Color.White, onBackground = White, onSurface = White) else darkColorScheme(primary = Lime, background = Ink, surface = Panel, onPrimary = Ink, onBackground = White, onSurface = White)) {
+    MaterialTheme(colorScheme = if (lightTheme) lightColorScheme(primary = Lime, background = Ink, surface = Panel, onPrimary = OnLime, onBackground = White, onSurface = White) else darkColorScheme(primary = Lime, background = Ink, surface = Panel, onPrimary = OnLime, onBackground = White, onSurface = White)) {
         if (onboarding) {
             OnboardingScreen(status = syncMessage, onConnect = { showApiKey = true }, onSkip = { repository.saveOnboardingComplete(); onboarding = false; selected = RunTab.HOME })
         } else Scaffold(
@@ -428,7 +430,7 @@ internal fun OnboardingScreen(status: String, onConnect: () -> Unit, onSkip: () 
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Mulai dengan Intervals.icu", color = White, fontWeight = FontWeight.Bold)
                 Text("API key disimpan di penyimpanan privat perangkat. Kamu juga bisa melanjutkan tanpa sinkronisasi dan mengimpor data jam nanti.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
-                Button(onClick = onConnect, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = Ink)) { Text("Hubungkan & Mulai") }
+                Button(onClick = onConnect, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = OnLime)) { Text("Hubungkan & Mulai") }
                 OutlinedButton(onClick = onSkip, modifier = Modifier.fillMaxWidth()) { Text("Lanjut tanpa sinkron") }
                 if (status.isNotBlank()) Text(status, color = Color(0xFFFFC36A), fontSize = 11.sp, lineHeight = 16.sp)
             }
@@ -801,7 +803,7 @@ internal fun HomePageHero() {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("RINGKASAN LATIHAN HARI INI", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
             Surface(color = Lime, shape = RoundedCornerShape(10.dp), modifier = Modifier.size(34.dp)) {
-                Box(contentAlignment = Alignment.Center) { Text("R", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black) }
+                Box(contentAlignment = Alignment.Center) { Text("R", color = OnLime, fontSize = 20.sp, fontWeight = FontWeight.Black) }
             }
         }
         Column(verticalArrangement = Arrangement.spacedBy((-3).dp)) {

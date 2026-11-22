@@ -272,7 +272,6 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
     SideEffect {
         applyRunSenseTheme(lightTheme)
         (context as? Activity)?.window?.let { window ->
-            val bar = if (lightTheme) android.graphics.Color.rgb(241, 243, 237) else android.graphics.Color.rgb(10, 10, 10)
             window.statusBarColor = android.graphics.Color.TRANSPARENT
             window.navigationBarColor = android.graphics.Color.TRANSPARENT
             androidx.core.view.WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = lightTheme
@@ -294,7 +293,7 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
                                 indicatorColor = Lime.copy(alpha = .13f), unselectedIconColor = Muted, unselectedTextColor = Muted))
                     }
                 }
-            }
+            },
             contentWindowInsets = WindowInsets.safeDrawing
         ) { padding ->
             when (selected) {

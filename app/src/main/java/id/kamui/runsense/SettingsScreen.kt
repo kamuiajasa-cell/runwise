@@ -44,7 +44,7 @@ internal fun SettingsScreen(
             GroupDivider()
             SettingRow(
                 "Tinggi & berat badan",
-                "TB ${if (profile.heightCm > 0) "${profile.heightCm} cm" else "belum diisi"} · BB ${if (profile.weightKg > 0) RunSenseFormat.kg(profile.weightKg) else "belum diisi"}",
+                "Usia ${if (profile.ageYears > 0) "${profile.ageYears} tahun" else "belum diisi"} · TB ${if (profile.heightCm > 0) "${profile.heightCm} cm" else "belum diisi"} · BB ${if (profile.weightKg > 0) RunSenseFormat.kg(profile.weightKg) else "belum diisi"}",
                 "Ubah", onProfile, Lime
             )
         }

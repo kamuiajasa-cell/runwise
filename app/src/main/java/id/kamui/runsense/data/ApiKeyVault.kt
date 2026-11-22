@@ -27,7 +27,7 @@ internal class ApiKeyVault(context: Context) {
         return runCatching {
             prefs.edit().putString(encryptedKey, encrypt(legacy)).remove(legacyKey).commit()
             legacy
-        }.getOrElse { legacy }
+        }.getOrElse { null }
     }
 
     @Synchronized fun write(value: String) {

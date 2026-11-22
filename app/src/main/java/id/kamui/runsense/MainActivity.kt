@@ -565,7 +565,7 @@ private fun TrainingScreen(
         }
         val cadenceValue = remember(activity.id, snapshot) {
             val points = domainItem?.let { repository.streamPoints(it.act.icuId ?: it.act.lid) }.orEmpty()
-            CadenceAnalyzer.analyze(points, 5).averageRunningCadence?.roundToInt()?.toString() ?: "—"
+            CadenceAnalyzer.analyze(points, 5).averageRunningCadence?.toString() ?: "—"
         }
         SessionDetailDialog(
             activity = activity,

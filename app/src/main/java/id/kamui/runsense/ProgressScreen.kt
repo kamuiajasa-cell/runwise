@@ -268,9 +268,12 @@ internal fun ProgressScreen(
         } == true
     }
     val strengthByCategory = recentStrength.groupBy { it.category }.toSortedMap()
-    val strengthSets = recentStrength.sumOf { it.sets }
-    val strengthReps = recentStrength.sumOf { it.sets * it.reps }
-    val strengthExternalVolume = recentStrength.sumOf { it.sets.toDouble() * it.reps * it.resistanceKg }
+    val repStrength = recentStrength.filter { it.doseType == "reps" }
+    val timedStrength = recentStrength.filter { it.doseType == "duration" }
+    val strengthSets = repStrength.sumOf { it.sets }
+    val strengthReps = repStrength.sumOf { it.sets * it.reps }
+    val strengthDurationMin = timedStrength.sumOf { it.durationMin }
+    val strengthExternalVolume = repStrength.sumOf { it.sets.toDouble() * it.reps * it.resistanceKg }
     val wellness = snapshot?.wellness.orEmpty()
     val latestWell = wellness.takeLast(7)
     val baselineWell = wellness.dropLast(7)
@@ -337,12 +340,12 @@ internal fun ProgressScreen(
                         Text(recentStrength.size.toString(), color = Lime, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     }
                     Column {
-                        Text("Total set", color = Muted, fontSize = 11.sp)
-                        Text(strengthSets.toString(), color = White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text("Set · reps", color = Muted, fontSize = 11.sp)
+                        Text("$strengthSets · $strengthReps", color = White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                     Column {
-                        Text("Repetisi", color = Muted, fontSize = 11.sp)
-                        Text(strengthReps.toString(), color = White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text("Durasi", color = Muted, fontSize = 11.sp)
+                        Text("${strengthDurationMin} mnt", color = White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 val change = recentStrength.size - previousStrength.size
@@ -360,13 +363,20 @@ internal fun ProgressScreen(
             EmptyCard("Belum ada strength yang ditandai selesai dalam 28 hari terakhir.")
         } else {
             strengthByCategory.forEach { (category, records) ->
-                val sets = records.sumOf { it.sets }
-                val reps = records.sumOf { it.sets * it.reps }
-                val external = records.sumOf { it.sets.toDouble() * it.reps * it.resistanceKg }
+                val repRecords = records.filter { it.doseType == "reps" }
+                val timedRecords = records.filter { it.doseType == "duration" }
+                val sets = repRecords.sumOf { it.sets }
+                val reps = repRecords.sumOf { it.sets * it.reps }
+                val minutes = timedRecords.sumOf { it.durationMin }
+                val external = repRecords.sumOf { it.sets.toDouble() * it.reps * it.resistanceKg }
+                val doseSummary = buildList {
+                    if (repRecords.isNotEmpty()) add("$sets set · $reps repetisi")
+                    if (timedRecords.isNotEmpty()) add("$minutes menit durasi")
+                    if (external > 0) add("${RunSenseFormat.decimal(external, 1)} kg-rep")
+                }.joinToString(" · ")
                 InfoCard(
                     strengthLabel(category),
-                    "${records.size} sesi · $sets set · $reps repetisi" +
-                        if (external > 0) " · ${RunSenseFormat.decimal(external, 1)} kg-rep" else "",
+                    "${records.size} sesi" + if (doseSummary.isNotBlank()) " · $doseSummary" else "",
                     "28 HARI"
                 )
             }

@@ -467,7 +467,7 @@ class RunSenseRepository(context: Context) {
     fun importBackupJson(raw: String): BackupImportResult {
         val root = JSONObject(raw)
         val schema = root.optInt("schema_version", 0)
-        require(schema in 1..1) { "Versi backup tidak didukung (schema $schema)." }
+        require(schema in 0..1) { "Versi backup tidak didukung (schema $schema)." }
         var skipped = 0
 
         fun mergeRecords(key: String, identity: (JSONObject) -> String, valid: (JSONObject) -> Boolean = { true }): Pair<Int, Int> {
@@ -518,7 +518,7 @@ class RunSenseRepository(context: Context) {
         }
 
         var settingsAdded = 0
-        val incomingSettings = root.optJSONObject("settings") ?: JSONObject()
+        val incomingSettings = root.optJSONObject("settings") ?: if (schema == 0) root else JSONObject()
         val editor = prefs.edit()
         for (key in backupSettingKeys) {
             if (prefs.contains(key) || !incomingSettings.has(key) || incomingSettings.isNull(key)) {

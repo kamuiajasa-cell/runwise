@@ -63,6 +63,7 @@ import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.abs
 
+@Composable
 internal fun ProgressScreen(
     activities: List<ActivityRecord>,
     summary: TrainingSummary,
@@ -374,4 +375,3 @@ internal fun ProgressScreen(
     }
 }
 
-@Composable

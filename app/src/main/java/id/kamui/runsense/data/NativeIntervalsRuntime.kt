@@ -170,6 +170,7 @@ class NativeIntervalsRuntime(context: Context) {
     suspend fun sync(apiKey: String? = null): String {
         if (!apiKey.isNullOrBlank()) domain.login(apiKey.trim())
         val result = domain.sync(silent = false)
+        if (result.ok) local.saveLastSyncAt()
         // Ambil stream untuk seluruh lari Intervals.icu yang belum tersimpan.
         // Stream disimpan lokal saat HTTP request berlangsung, sehingga layar Riwayat
         // cukup membaca cache dan tidak perlu tombol "Muat stream".

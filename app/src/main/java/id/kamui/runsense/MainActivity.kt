@@ -298,7 +298,23 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
         ) { padding ->
             when (selected) {
                 RunTab.HOME -> HomeScreen(activities, summary, domainResult, baseSnapshot, planSettings, weather, weatherMessage, dashboard?.lastSyncAt ?: 0L, Modifier.padding(padding), onAdd = { showActivity = true }, onStrength = { showStrength = true }, onRefreshWeather = { refreshWeather() }, onWorkout = { showWorkoutComposer = true }, onViewAll = { selected = RunTab.TRAINING })
-                RunTab.TRAINING -> TrainingScreen(activities, strength, profile, domainResult, baseSnapshot, repository, Modifier.padding(padding), onAdd = { showActivity = true }, onStrength = { showStrength = true }, onCheckin = { checkinActivity = it })
+                RunTab.TRAINING -> TrainingScreen(
+                    activities, strength, profile, domainResult, baseSnapshot, repository, Modifier.padding(padding),
+                    isRefreshing = syncBusy,
+                    onRefresh = {
+                        if (!syncBusy) scope.launch {
+                            if (!hasIntervalsKey) { syncMessage = "Hubungkan Intervals.icu untuk memperbarui riwayat."; return@launch }
+                            syncBusy = true
+                            try {
+                                syncMessage = withContext(Dispatchers.IO) { intervals.sync() }
+                                changed()
+                            } catch (e: Exception) {
+                                syncMessage = "Riwayat belum berhasil diperbarui. Periksa koneksi dan coba lagi."
+                            } finally { syncBusy = false }
+                        }
+                    },
+                    onAdd = { showActivity = true }, onStrength = { showStrength = true }, onCheckin = { checkinActivity = it }
+                )
                 RunTab.PROGRESS -> ProgressScreen(
                     activities, summary, domainResult, baseSnapshot, repository, strength, profile, Modifier.padding(padding),
                     onCheckin = { checkinActivity = it }

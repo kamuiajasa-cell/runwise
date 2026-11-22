@@ -27,14 +27,22 @@ class NativeIntervalsRuntime(context: Context) {
     private val app = context.applicationContext
     private val prefs = app.getSharedPreferences("runsense_native_v1", Context.MODE_PRIVATE)
     private val local = RunSenseRepository(app)
+    private val apiKeyVault = ApiKeyVault(app)
     private lateinit var domain: DomainRepository
     private lateinit var icu: IcuHttp
 
     init {
         val store = object : KeyValueStore {
-            override fun read(key: String): String? = prefs.getString(key, null)
-            override fun write(key: String, value: String) { prefs.edit().putString(key, value).apply() }
-            override fun remove(key: String) { prefs.edit().remove(key).apply() }
+            override fun read(key: String): String? =
+                if (key == DomainRepository.KEY_API) apiKeyVault.read() else prefs.getString(key, null)
+            override fun write(key: String, value: String) {
+                if (key == DomainRepository.KEY_API) apiKeyVault.write(value)
+                else prefs.edit().putString(key, value).apply()
+            }
+            override fun remove(key: String) {
+                if (key == DomainRepository.KEY_API) apiKeyVault.remove()
+                else prefs.edit().remove(key).apply()
+            }
         }
         val http = object : HttpClient {
             override suspend fun get(url: String, headers: Map<String, String>): HttpResponse =

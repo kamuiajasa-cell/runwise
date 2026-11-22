@@ -10,8 +10,44 @@ data class RunWalkSettings(val enabled: Boolean = false, val runSeconds: Int = 2
 data class WeatherSnapshot(val temperatureC: Double, val apparentC: Double, val humidityPct: Int, val windKmh: Double, val precipitationMm: Double, val weatherCode: Int, val fetchedAt: Long, val latitude: Double, val longitude: Double)
 data class TrainingSummary(val acuteLoad: Double, val chronicLoad: Double, val acwr: Double?, val readiness: Int?, val strengthLoad48h: Double, val legStrengthLoad48h: Double, val qualitySessions7d: Int, val recommendation: String, val rationale: List<String>)
 
+data class StrengthSuggestion(
+    val level: Int,
+    val sets: Int,
+    val reps: Int,
+    val resistanceKg: Double,
+    val note: String
+)
+
 object TrainingEngine {
     private const val DAY = 86_400_000L
+
+    /** Conservative per-exercise progression inferred only from the saved log. */
+    fun suggestStrength(exercise: String, history: List<StrengthRecord>): StrengthSuggestion {
+        val records = history.filter { it.exercise.equals(exercise, ignoreCase = true) }.sortedBy { it.date }
+        val latest = records.lastOrNull()
+            ?: return StrengthSuggestion(1, 3, 10, 0.0, "Mulai dari dosis dasar; utamakan teknik yang nyaman.")
+        val level = latest.level.coerceIn(0, 4)
+        val sets = latest.sets.takeIf { it > 0 } ?: 3
+        val reps = latest.reps.takeIf { it > 0 } ?: 10
+        val resistance = latest.resistanceKg.coerceAtLeast(0.0)
+        if (!latest.completed) {
+            return StrengthSuggestion((level - 1).coerceAtLeast(0), sets.coerceAtMost(2).coerceAtLeast(1),
+                reps.coerceAtMost(8).coerceAtLeast(6), resistance,
+                "Sesi terakhir dilewati: ulangi dengan dosis lebih ringan, tanpa mengejar progres.")
+        }
+        val lastTwo = records.takeLast(2)
+        if (lastTwo.size < 2 || lastTwo.any { !it.completed }) {
+            return StrengthSuggestion(level, sets, reps, resistance,
+                "Pertahankan dosis terakhir. Progresi menunggu dua sesi berturut-turut selesai.")
+        }
+        return if (reps >= 12) {
+            StrengthSuggestion((level + 1).coerceAtMost(4), (sets + 1).coerceAtMost(5), 8, resistance,
+                "Dua sesi terakhir selesai: naikkan satu tingkat dengan set tambahan dan repetisi lebih rendah.")
+        } else {
+            StrengthSuggestion(level, sets, (reps + 1).coerceAtMost(12), resistance,
+                "Dua sesi terakhir selesai: tambah satu repetisi per set, tanpa menaikkan beban sekaligus.")
+        }
+    }
 
     fun activityLoad(a: ActivityRecord, profile: AthleteProfile): Double {
         if (a.externalLoad > 0) return a.externalLoad

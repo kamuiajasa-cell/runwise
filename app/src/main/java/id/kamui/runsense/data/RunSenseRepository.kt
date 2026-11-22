@@ -601,7 +601,7 @@ class RunSenseRepository(context: Context) {
         }
         val strengthItems = mergeRecords("strength", { it.optString("id") }) { item ->
             runCatching { java.time.LocalDate.parse(item.optString("date")) }.isSuccess &&
-                item.optInt("durationMin", -1) >= 0
+                item.optInt("durationMin", -1) >= 1
         }
         val wellnessItems = mergeRecords("wellness", { it.optString("date") }) { item ->
             val date = item.optString("date")

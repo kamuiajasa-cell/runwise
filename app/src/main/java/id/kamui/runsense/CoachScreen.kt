@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import id.kamui.runsense.data.RunSenseRepository
 import id.kamui.runsense.data.NativeIntervalsRuntime
+import id.kamui.runsense.data.CoachClimateInsight
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -64,7 +65,7 @@ import kotlin.math.roundToInt
 import kotlin.math.abs
 
 @Composable
-internal fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSummary, strength: List<StrengthRecord>, strengthTarget: Int, parqAnswers: List<Boolean?>, domainResult: com.runnow.domain.ProcessResult?, snapshot: Snapshot?, planSettings: com.runnow.domain.Settings, weather: WeatherSnapshot?, weatherMessage: String, modifier: Modifier, onRefreshWeather: () -> Unit, onWorkout: () -> Unit) {
+internal fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSummary, strength: List<StrengthRecord>, strengthTarget: Int, parqAnswers: List<Boolean?>, domainResult: com.runnow.domain.ProcessResult?, snapshot: Snapshot?, planSettings: com.runnow.domain.Settings, weather: WeatherSnapshot?, weatherMessage: String, climateInsight: CoachClimateInsight?, modifier: Modifier, onRefreshWeather: () -> Unit, onWorkout: () -> Unit) {
     Page(modifier) {
         PageHero("PELATIHAN ADAPTIF", "Train with", "better insight.", "Evaluasi beban, pemulihan, strength, dan kondisi cuaca.")
         DisclosureSection("Kondisi hari ini", "Cuaca · readiness · rekomendasi", initiallyExpanded = true) {
@@ -85,6 +86,7 @@ internal fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSumm
             }
             ReadinessCard(summary.readiness ?: domainResult?.athlete?.score, summary.recommendation)
             CoachRecommendationCard(domainResult?.recommendation, onWorkout)
+            ClimateCoachCard(climateInsight)
         }
 
         DisclosureSection("Kapasitas & ambang", "Tahap · ambang laktat · estimasi") {
@@ -204,3 +206,45 @@ internal fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSumm
     }
 }
 
+
+
+@Composable
+private fun ClimateCoachCard(insight: CoachClimateInsight?) {
+    DisclosureSection("Jam lari nyaman", "Prakiraan 40 jam · respons cuaca personal") {
+        if (insight == null) {
+            InfoCard("Data cuaca belum siap", "Aktifkan izin lokasi dan perbarui cuaca untuk menghitung waktu lari yang lebih nyaman.", "MENUNGGU DATA")
+            return@DisclosureSection
+        }
+        if (insight.slots.isEmpty()) {
+            InfoCard("Belum ada waktu yang lebih nyaman", "Prakiraan untuk 40 jam ke depan belum menemukan jendela 05.00–18.00 yang cukup baik. Coba perbarui cuaca nanti.", "PRAKIRAAN TERBATAS")
+        } else {
+            insight.slots.forEachIndexed { index, slot ->
+                InfoCard(if (index == 0) "Pilihan utama" else "Alternatif", slot.txt, if (slot.better) "LEBIH NYAMAN" else "OPSIONAL")
+            }
+        }
+        val p = insight.personal
+        InfoCard(
+            "Ambang suhu personal",
+            if (p.ok) "Optimum sekitar ${RunSenseFormat.decimal(p.opt, 1)}°C · nyaman < ${p.cool ?: 25}°C · berat ≥ ${p.hot ?: 29}°C"
+            else "Ambang masih default 25° / 29°C. ${p.reason}",
+            if (p.ok) "BERDASARKAN RIWAYAT" else "SAMPEL BELUM CUKUP"
+        )
+        Text("Cuaca historis cocok: ${insight.matchedRuns} dari ${insight.totalRuns} lari", color = Muted, fontSize = 11.sp)
+        val comparisons = insight.responseByClimate.cmp
+        if (comparisons.isNotEmpty()) {
+            SectionTitle("Respons HR pada easy run", "PACE SEBANDING · MEDIAN")
+            comparisons.forEach { (condition, comparison) ->
+                val label = when (condition) {
+                    "hangat" -> "Hangat"
+                    "panas" -> "Panas"
+                    "panas & lembap" -> "Panas & lembap"
+                    else -> condition.replaceFirstChar { it.uppercase() }
+                }
+                InfoCard(label, "HR median ${if (comparison.d >= 0) "+" else ""}${comparison.d} bpm dibanding kondisi sejuk · ${comparison.n} pasangan · ${comparison.conf}", "KONTEKS")
+            }
+        } else {
+            Text("Perbandingan HR antar kondisi belum cukup kuat. Coach menunggu minimal 3 easy run pada kondisi sejuk dan kondisi pembanding dengan pace yang berdekatan.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+        }
+        Text("Catatan: prakiraan dan arsip Open-Meteo berbasis jam serta titik GPS ringkas, bukan pengukuran cuaca per detik. Data HR/pace per detik tetap dianalisis sebagai stream latihan; pencocokan cuaca ditafsirkan sebagai konteks segmen.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+    }
+}

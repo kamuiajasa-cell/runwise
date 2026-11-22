@@ -2023,7 +2023,7 @@ private fun recommendationWorkoutText(recommendation: com.runnow.domain.Recommen
         if (repeat != null) {
             val count = repeat.groupValues[1]
             val minutes = repeat.groupValues[2]
-            "$count x\n- $minutes m Z4 HR\n- 2m Z1 HR"
+            "${count}x\n- $minutes m Z4 HR\n- 2m Z1 HR"
         } else {
             val minutes = Regex("(\\d+)\\s*m(?:nt|enit)", RegexOption.IGNORE_CASE).find(detail)?.groupValues?.getOrNull(1)
             if (minutes != null) {

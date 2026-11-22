@@ -371,8 +371,9 @@ private fun HomeScreen(activities: List<ActivityRecord>, summary: TrainingSummar
             OutlinedButton(onClick = onStrength, modifier = Modifier.weight(1f)) { Text("＋ Strength") }
         } }
         item { SectionKicker("AKTIVITAS TERBARU", "02") }
+        item { SectionTitle("Lari terakhir", "SESI TERBARU") }
         item {
-            val latest = activities.firstOrNull { it.type.equals("run", true) || it.type.equals("walk", true) }
+            val latest = activities.firstOrNull { it.type.equals("run", true) }
             Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 if (latest == null) EmptyCard("Belum ada lari tersimpan. Tambahkan sesi pertama untuk mulai membangun analisis beban.")
                 else ActivityCard(latest, onClick = onViewAll)
@@ -1100,7 +1101,7 @@ private fun SessionReviewCard(item: ActivityItem, snapshot: Snapshot?, repositor
     val cadence = remember(rawPoints) { CadenceAnalyzer.analyze(rawPoints, 5) }
     Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text(review?.summary?.ifBlank { item.why } ?: item.why, color = White, fontSize = 12.sp, lineHeight = 17.sp)
+            Text(item.why.ifBlank { "Analisa sesi tersedia di bawah." }, color = White, fontSize = 12.sp, lineHeight = 17.sp)
             review?.sections?.take(3)?.forEachIndexed { index, section ->
                 DisclosureSection(section.title, initiallyExpanded = index == 0) {
                     section.notes.take(3).forEach { note ->

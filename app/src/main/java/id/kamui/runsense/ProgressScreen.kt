@@ -305,14 +305,14 @@ internal fun ProgressScreen(
     val dateFmt = java.time.format.DateTimeFormatter.ofPattern(if (rangeWeeks >= 26) "d MMM yyyy" else "d MMM", Locale("id", "ID"))
 
     Page(modifier) {
-        PageHero("ANALISIS PERFORMA", "See how far", "you've grown.", "Lima sisi dinilai terpisah, tanpa skor gabungan. Kesimpulan mengikuti kecukupan data.")
-        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        PageHero("PERFORMANCE INTELLIGENCE", "See how far", "you've grown.", "Ringkasan perkembangan lari berdasarkan data yang tersedia.")
+        FilterDock("TIMEFRAME") {
             listOf(8 to "8 minggu", 12 to "12 minggu", 26 to "6 bulan", 52 to "1 tahun").forEach { (value, label) ->
-                FilterChip(selected = rangeWeeks == value, onClick = { rangeWeeks = value }, label = { Text(label, fontSize = 11.sp) })
+                RunChip(label, rangeWeeks == value, { rangeWeeks = value })
             }
         }
-        Text("PERIODE · ${fromDate.format(dateFmt)} – ${today.format(dateFmt)}", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-        Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+        Text("PERIODE · ${fromDate.format(dateFmt)} – ${today.format(dateFmt)}", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.2.sp)
+        Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Edge, RoundedCornerShape(18.dp))) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 Text("Ringkasan progres", color = White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 summaryRows.forEach { (label, status) ->
@@ -328,11 +328,8 @@ internal fun ProgressScreen(
         ProgressDimensionCard("Kapasitas latihan", "Volume eksternal, minggu aktif, dan CTL bila tersedia", capacityStatus, confidence(validRuns.size, span), capacityRows, if (volumeDelta == null) "Riwayat minggu selesai belum cukup untuk membandingkan tren volume." else "Median jarak mingguan berubah ${volumeDelta.takeIf { it.isFinite() }?.let { "%+.1f%%".format(Locale.US, it) } ?: "—"}. Minggu kosong tetap dihitung; kenaikan bukan target yang harus dipaksakan.")
         ProgressDimensionCard("Durability", "Kestabilan pace dan HR di sepertiga akhir lari panjang", durabilityStatus, confidence(durability.size, if (durability.size > 1) (durability.last().date - durability.first().date) / dayMs else 0.0), durabilityRows, if (durability.size < 3) "Butuh minimal 3 lari easy/long ≥5 km atau ≥40 menit dengan stream valid. Saat ini ${durability.size} sesi memenuhi syarat." else "Dibandingkan sepertiga tengah dengan sepertiga akhir. Elevasi, suhu, dan fueling belum dikontrol.")
         ProgressDimensionCard("Keberlanjutan", "Konsistensi latihan dan sinyal pemulihan dibanding baseline pribadi", sustainabilityStatus, if (latestWell.size >= 5 || recentStrength.size >= 3) "sedang" else "rendah", sustainabilityRows, if (recentRhr != null && baseRhr != null && recentRhr - baseRhr >= 3) "RHR terbaru ≥3 bpm di atas baseline. Ini sinyal untuk dipantau, bukan diagnosis." else "Data nyeri/cedera tidak tersedia lengkap; kartu ini tidak membuat diagnosis atau skor risiko cedera.")
-        if (snapshot?.streams?.isNotEmpty() == true) {
-            HeartRateZoneChart(activities, snapshot)
-        }
         SectionTitle("Perkembangan strength", "28 HARI")
-        Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+        Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Edge, RoundedCornerShape(18.dp))) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
@@ -380,7 +377,7 @@ internal fun ProgressScreen(
                 Text("${week.format(dateFmt)} · $count sesi", color = Muted, fontSize = 11.sp)
                 Text(RunSenseFormat.distanceKm(km, aggregate = true), color = White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
-            LinearProgressIndicator(progress = (km / (weekly.maxOfOrNull { it.second }?.coerceAtLeast(1.0) ?: 1.0)).toFloat().coerceIn(0f, 1f), modifier = Modifier.fillMaxWidth().height(5.dp), color = Lime.copy(alpha = .75f), trackColor = Color.White.copy(alpha = .08f))
+            LinearProgressIndicator(progress = (km / (weekly.maxOfOrNull { it.second }?.coerceAtLeast(1.0) ?: 1.0)).toFloat().coerceIn(0f, 1f), modifier = Modifier.fillMaxWidth().height(5.dp), color = Lime.copy(alpha = .75f), trackColor = Elev)
         }
 
     }

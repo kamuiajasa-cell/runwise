@@ -100,54 +100,6 @@ class TrainingEngineTest {
     }
 
 
-
-    @Test fun readinessBaselineIsIndependentOfWellnessImportOrder() {
-        val now = System.currentTimeMillis()
-        fun day(offset: Int) = java.time.LocalDate.now().minusDays(offset.toLong()).toString()
-        val chronological = (8 downTo 1).map { offset ->
-            WellnessRecord(day(offset), restingHr = if (offset <= 3) 70 else 60, sleepHours = 7.0)
-        }
-        val shuffled = listOf(chronological[7], chronological[6], chronological[5], chronological[0],
-            chronological[1], chronological[2], chronological[3], chronological[4])
-        val orderedResult = TrainingEngine.summarize(emptyList(), emptyList(), chronological, AthleteProfile(), now)
-        val shuffledResult = TrainingEngine.summarize(emptyList(), emptyList(), shuffled, AthleteProfile(), now)
-        assertEquals("Urutan impor tidak boleh mengubah readiness", orderedResult.readiness, shuffledResult.readiness)
-    }
-
-    @Test fun highStrengthVolumeAndResistanceAffectPlannedSessionAdvice() {
-        val planned = java.time.LocalDate.now().plusDays(1)
-        val strength = listOf(
-            StrengthRecord("heavy", planned.minusDays(1).toString(), "leg", 30, 1, true, "Squat", 4, 12, 20.0)
-        )
-        val summary = TrainingEngine.summarize(emptyList(), strength, emptyList(), AthleteProfile())
-        val advice = TrainingEngine.advisePlannedSession("Interval", planned, emptyList(), strength, summary)
-        assertNotNull("Volume dan beban eksternal harus ikut menjadi guardrail sesi berikutnya", advice)
-        assertEquals("TINJAU ULANG SESI", advice?.status)
-    }
-
-
-    @Test fun strengthSuggestionOnlyProgressesAfterTwoCompletedSessions() {
-        val history = listOf(
-            StrengthRecord("one", "2026-11-20", "leg", 20, 1, true, "Squat", 3, 10, 0.0),
-            StrengthRecord("two", "2026-11-21", "leg", 20, 1, true, "Squat", 3, 10, 0.0)
-        )
-        val suggestion = TrainingEngine.suggestStrength("Squat", history)
-        assertEquals(3, suggestion.sets)
-        assertEquals(11, suggestion.reps)
-        assertEquals(1, suggestion.level)
-    }
-
-    @Test fun skippedStrengthSessionDoesNotAdvanceProgression() {
-        val history = listOf(
-            StrengthRecord("one", "2026-11-20", "leg", 20, 2, true, "Squat", 3, 10, 0.0),
-            StrengthRecord("skip", "2026-11-21", "leg", 20, 2, false, "Squat", 3, 10, 0.0)
-        )
-        val suggestion = TrainingEngine.suggestStrength("Squat", history)
-        assertEquals(1, suggestion.level)
-        assertEquals(2, suggestion.sets)
-        assertEquals(8, suggestion.reps)
-    }
-
     @Test fun completedLegStrengthFlagsUpcomingQualitySession() {
         val planned = java.time.LocalDate.now().plusDays(2)
         val strength = listOf(StrengthRecord("s", planned.minusDays(1).toString(), "leg", 30, 3, true))

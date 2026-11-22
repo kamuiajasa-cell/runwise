@@ -137,49 +137,41 @@ internal fun TrainingScreen(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize().nestedScroll(refreshConnection),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
+        contentPadding = ScreenPadding,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        if (isRefreshing) item { Text("Memperbarui riwayat…", color = Lime, fontSize = 11.sp) }
-        item { PageHero("RIWAYAT LATIHAN", "Every session", "has a story.", "Jejak lari, jalan, dan strength dalam satu tempat.") }
+        if (isRefreshing) item { SyncBar("Memperbarui riwayat…", true) }
+        item { PageHero("YOUR ACTIVITY LOG", "Every run", "has a story.", "Jejak latihan, ritme, dan konsistensimu.") }
         item { RunSenseSegment(mode, listOf("run" to "Lari", "strength" to "Strength"), { mode = it; visibleCount = 20 }) }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            FilterDock("FILTER") {
                 listOf("week" to "Minggu", "month" to "Bulan", "all" to "Semua").forEach { (key, label) ->
-                    FilterChip(
-                        selected = filter == key,
-                        onClick = { filter = key; visibleCount = 20 },
-                        label = { Text(label, fontSize = 11.sp) },
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Lime, selectedLabelColor = OnLime)
-                    )
+                    RunChip(label, filter == key, { filter = key; visibleCount = 20 })
                 }
             }
         }
         item {
-            Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.fillMaxWidth().padding(vertical = 13.dp, horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    val values = if (mode == "run") listOf(
-                        Triple(visibleRuns.size.toString(), "Sesi", Lime),
-                        Triple(RunSenseFormat.distanceKm(totalKm, aggregate = true, withUnit = false), "km", White),
-                        Triple(RunSenseFormat.durationMinutes(totalMinutes), "Durasi", White)
-                    ) else listOf(
-                        Triple(visibleStrength.size.toString(), "Catatan", Lime),
-                        Triple(visibleStrength.count { it.completed }.toString(), "Selesai", White),
-                        Triple(RunSenseFormat.durationWholeMinutes(visibleStrength.sumOf { it.durationMin }), "Durasi", White)
-                    )
-                    values.forEach { (value, label, color) ->
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text(value, color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            Text(label, color = Muted, fontSize = 11.sp)
-                        }
-                    }
+            val avgPace = if (totalKm > 0.0 && totalMinutes > 0.0) RunSenseFormat.pace(totalMinutes / totalKm) else "—"
+            val tiles = if (mode == "run") listOf(
+                visibleRuns.size.toString() to "Sesi",
+                RunSenseFormat.distanceKm(totalKm, aggregate = true, withUnit = false) to "km",
+                RunSenseFormat.durationMinutes(totalMinutes) to "Durasi",
+                avgPace to "Pace/km"
+            ) else listOf(
+                visibleStrength.size.toString() to "Catatan",
+                visibleStrength.count { it.completed }.toString() to "Selesai",
+                RunSenseFormat.durationWholeMinutes(visibleStrength.sumOf { it.durationMin }) to "Durasi"
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                tiles.forEachIndexed { index, tile ->
+                    StatTile(tile.first, tile.second, index == 0, Modifier.weight(1f))
                 }
             }
         }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onAdd, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = OnLime)) { Text("＋ Aktivitas") }
-                OutlinedButton(onClick = onStrength, modifier = Modifier.weight(1f)) { Text("＋ Strength") }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                RunButton("＋ Aktivitas", onAdd, Modifier.weight(1f), primary = true)
+                RunButton("＋ Strength", onStrength, Modifier.weight(1f))
             }
         }
         if (mode == "run") {
@@ -188,7 +180,7 @@ internal fun TrainingScreen(
             groupedRuns.forEach { (weekStart, weekItems) ->
                 item(key = "week-$weekStart") {
                     val km = weekItems.sumOf { it.distanceKm.takeIf { value -> value.isFinite() && value > 0.0 } ?: 0.0 }
-                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().padding(top = 12.dp, start = 3.dp, end = 3.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             when (weekStart) {
                                 monday -> "Minggu ini"
@@ -205,7 +197,7 @@ internal fun TrainingScreen(
                 }
             }
             if (visibleCount < visibleRuns.size) item {
-                OutlinedButton(onClick = { visibleCount += 20 }, modifier = Modifier.fillMaxWidth()) { Text("Tampilkan lebih banyak") }
+                RunButton("Tampilkan lebih banyak", { visibleCount += 20 }, Modifier.fillMaxWidth())
             }
         } else {
             item { SectionTitle("Riwayat strength", "${visibleStrength.size} CATATAN") }
@@ -220,7 +212,7 @@ internal fun TrainingScreen(
                 )
             }
             if (visibleCount < visibleStrength.size) item {
-                OutlinedButton(onClick = { visibleCount += 20 }, modifier = Modifier.fillMaxWidth()) { Text("Tampilkan lebih banyak") }
+                RunButton("Tampilkan lebih banyak", { visibleCount += 20 }, Modifier.fillMaxWidth())
             }
         }
     }

@@ -3,7 +3,7 @@
 ## Visual and motion language
 
 direction:
-  id: runsense-observed-lime-dark
+  id: runsense-navy-green
   name: RunSense editorial performance
   status: observed
   philosophy: A calm, focused running companion; performance information is clear without making every metric compete for attention.
@@ -16,21 +16,28 @@ direction:
   colour:
     scheme: Dark default
     neutrals:
-      background: "#0A0A0A"
-      card: "#1E1E1E"
-      text: "#FAFAFA"
-      muted: "#9E9E9E"
-      border: "rgba(255,255,255,0.05)"
+      background: "#07152D"
+      card: "#0D2040"
+      elevated: "#12294A"
+      text: "#F5F8FF"
+      muted: "#9AAAC3"
+      border: "rgba(150,185,230,0.13)"
     accent:
-      primary: "#C6FF38"
-      warning: "#FFB300"
+      primary: "#58E83B"
+      warning: "#FFC36A"
       danger: "#FF5252"
+    light:
+      background: "#EFF4FB"
+      card: "#FFFFFF"
+      text: "#0B1A33"
+      muted: "#63728A"
+      primary: "#299D35"
   shape:
     radius: [10, 16, 20, 26]
     cards: Large rounded hero card; 20dp content cards
   depth: Flat surfaces with subtle borders; avoid heavy elevation.
   spacing: 4dp base rhythm; 12–20dp content gaps; 20–22dp page gutters.
-  layout: Mobile-first, single-column scrolling pages; editorial header per page; bottom navigation remains visible. Coach and Watch stay as native destinations even though the HTML reference has fewer primary destinations.
+  layout: Mobile-first, single-column scrolling pages; editorial header per page; a floating pill bottom navigation with four tabs (Hari Ini, Riwayat, Progres, Saya) exactly like the HTML. Coach and Jam are child pages of Saya with a back bar; the Saya tab stays highlighted while they are open.
   background rhythm: Dark continuous canvas; card surfaces alternate with open space and thin section dividers.
   material: Matte, low-gloss surfaces.
   imagery: No decorative imagery required; use the real RunSense mark where available.
@@ -41,7 +48,7 @@ direction:
 
 ## Observed evidence
 
-- `runsense.html` dark tokens: background #0A0A0A, card #1E1E1E, primary #C6FF38, text #FAFAFA, muted #9E9E9E.
+- `runsense.html` final cascade (last `:root` override): background #07152D, card #0D2040, primary #58E83B, text #F5F8FF, muted #9AAAC3. Earlier lime/graphite blocks in the file are overridden.
 - The HTML Home page leads with "Run with your rhythm.", then today's training card, body/leg context, weekly readiness, and recent sync status.
 - HTML History and Progress pages use distinct editorial headers, filter docks, summaries, and grouped cards.
 - The native app already used the same dark/lime palette, but a permanent top bar and generic page headings weakened the match.

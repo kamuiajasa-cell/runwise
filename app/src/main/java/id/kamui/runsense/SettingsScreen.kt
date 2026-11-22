@@ -1,67 +1,24 @@
 package id.kamui.runsense
 
-import android.os.Bundle
-import android.app.Activity
-import android.Manifest
-import android.content.pm.PackageManager
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Intent
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.ContextCompat
-import id.kamui.runsense.data.RunSenseRepository
-import id.kamui.runsense.data.NativeIntervalsRuntime
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import id.kamui.runsense.domain.*
-import com.runnow.domain.ActivityItem
-import com.runnow.domain.Snapshot
-import com.runnow.domain.reviewRun
-import com.runnow.domain.stage
-import com.runnow.domain.detectType
-import com.runnow.domain.PLAN_DAYS
-import com.runnow.domain.hasPlan
-import com.runnow.domain.planOf
-import com.runnow.domain.ymd
-import com.runnow.domain.racePhase
-import com.runnow.domain.cutbackDue
-import com.runnow.domain.flagInfo
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import kotlin.math.roundToInt
-import kotlin.math.abs
 
 @Composable
 internal fun SettingsScreen(
@@ -75,53 +32,105 @@ internal fun SettingsScreen(
     onRunWalk: (RunWalkSettings) -> Unit, onTheme: (Boolean) -> Unit, onStyle: (String) -> Unit
 ) {
     Page(modifier) {
-        PageHero("PROFIL ATLET", "Your", "profile.", "Atur data tubuh, target, jadwal latihan, dan koneksi data.")
-        SectionTitle("Tampilan", "PERSONALISASI")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Tema terang", color = White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                Text(if (lightTheme) "Aktif" else "Gelap · default", color = Muted, fontSize = 11.sp)
+        PageHero("ATHLETE SETTINGS", "Your", "profile.", "Data tubuh, target, jadwal, dan koneksi.")
+
+        // ---- Data tubuh & detak
+        SettingsGroup("Data tubuh & detak") {
+            SettingRow(
+                "Detak jantung",
+                "RHR ${profile.restingHr} · HRmax ${profile.maxHr} · LTHR ${profile.thresholdHr}",
+                "Ubah", onProfile, Lime
+            )
+            GroupDivider()
+            SettingRow(
+                "Tinggi & berat badan",
+                "TB ${if (profile.heightCm > 0) "${profile.heightCm} cm" else "belum diisi"} · BB ${if (profile.weightKg > 0) RunSenseFormat.kg(profile.weightKg) else "belum diisi"}",
+                "Ubah", onProfile, Lime
+            )
+        }
+        Text("Data otomatis diambil dari Intervals.icu jika tersedia. Isi nilai manual hanya bila ingin menimpa hasil otomatis.", color = Muted, fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.fillMaxWidth())
+
+        // ---- Target & gaya coaching
+        SettingsGroup("Target & gaya coaching") {
+            GroupBlock {
+                Text("Gaya coaching", color = White, fontSize = 14.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("conservative" to "Konservatif", "moderate" to "Moderat", "aggressive" to "Agresif").forEach { item ->
+                        RunChip(item.second, coachingStyle == item.first, { onStyle(item.first) })
+                    }
+                }
+                Text(
+                    when (coachingStyle) {
+                        "conservative" -> "Lebih banyak recovery."
+                        "aggressive" -> "Lebih banyak sesi kualitas."
+                        else -> "Seimbang (disarankan)."
+                    },
+                    color = Muted, fontSize = 11.sp
+                )
             }
-            Switch(checked = lightTheme, onCheckedChange = onTheme)
+            GroupDivider()
+            SettingRow("Target strength", "$strengthTarget hari per minggu", "Atur", onStrengthTarget, Lime)
         }
-        SectionTitle("Gaya coaching", "PREFERENSI COACH")
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("conservative" to "Konservatif", "moderate" to "Moderat", "aggressive" to "Agresif").forEach { item ->
-                FilterChip(selected = coachingStyle == item.first, onClick = { onStyle(item.first) }, label = { Text(item.second, fontSize = 11.sp) })
+
+        // ---- Jadwal latihan & lomba
+        SettingsGroup("Jadwal latihan & lomba") {
+            SettingRow("Rencana mingguan & race", "Jenis latihan, jarak harian, tanggal lomba, dan target waktu.", "Atur", onPlanRace, Lime)
+        }
+
+        // ---- Pola lari-jalan
+        SettingsGroup("Pola lari–jalan") {
+            GroupBlock { RunWalkSettingsCard(runWalk, onRunWalk) }
+        }
+
+        // ---- Koneksi data
+        SettingsGroup("Koneksi data") {
+            SettingRow(
+                "Intervals.icu",
+                if (hasIntervalsKey) "API key tersimpan aman · ••••" + (apiKeyLastFour ?: "••••") else "Masukkan API key untuk mengambil riwayat aktivitas dan wellness.",
+                if (hasIntervalsKey) "Terhubung" else "Belum terhubung",
+                null,
+                if (hasIntervalsKey) Lime else Muted
+            )
+            GroupDivider()
+            GroupBlock {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    RunButton(if (hasIntervalsKey) "Ganti API key" else "Masukkan API key", onApiKey, Modifier.weight(1f), primary = !hasIntervalsKey)
+                    RunButton(if (syncBusy) "Menyinkronkan…" else "Sinkron ulang", onSync, Modifier.weight(1f), enabled = hasIntervalsKey && !syncBusy)
+                }
+                if (syncMessage.isNotBlank()) Text(syncMessage, color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+            }
+            GroupDivider()
+            SettingRow("Coach", "Kondisi hari ini, kapasitas, beban, dan rencana vs realisasi.", null, onCoach)
+            GroupDivider()
+            SettingRow("Jam & koneksi", "Pasangkan jam Huawei dan impor data latihan.", null, onWatch)
+        }
+
+        // ---- Tampilan
+        SettingsGroup("Tampilan") {
+            GroupBlock {
+                Text("Tema aplikasi", color = White, fontSize = 14.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    RunChip("Gelap", !lightTheme, { onTheme(false) })
+                    RunChip("Terang", lightTheme, { onTheme(true) })
+                }
             }
         }
-        SectionTitle("Pola lari–jalan", "SEMUA TAHAP")
-        RunWalkSettingsCard(runWalk, onRunWalk)
-        SectionTitle("Ruang latihan", "FITUR RUNSENSE")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onCoach, modifier = Modifier.weight(1f)) { Text("✦ Coach") }
-            OutlinedButton(onClick = onWatch, modifier = Modifier.weight(1f)) { Text("⌚ Jam") }
-        }
-        InfoCard("Profil detak jantung", "RHR ${profile.restingHr} · HRmax ${profile.maxHr} · LTHR ${profile.thresholdHr}", "EDIT")
-        InfoCard("Data tubuh", "TB ${if (profile.heightCm > 0) "${profile.heightCm} cm" else "belum diisi"} · BB ${if (profile.weightKg > 0) RunSenseFormat.kg(profile.weightKg) else "belum diisi"}", "PROFIL")
-        Button(onClick = onProfile, colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = OnLime)) { Text("Atur profil") }
-        SectionTitle("Rencana dan target race", "TERSIMPAN LOKAL")
-        OutlinedButton(onClick = onPlanRace, modifier = Modifier.fillMaxWidth()) { Text("Atur rencana mingguan & race") }
-        SectionTitle("Sinkronisasi Intervals.icu", if (hasIntervalsKey) "TERHUBUNG" else "BELUM TERHUBUNG")
-        Text(if (hasIntervalsKey) "API key tersimpan aman · ••••" + (apiKeyLastFour ?: "••••") + ". Sinkronkan aktivitas dan wellness dari akun Intervals.icu." else "Masukkan API key Intervals.icu untuk mengambil riwayat aktivitas dan wellness.", fontSize = 11.sp, lineHeight = 16.sp)
-        Button(onClick = onApiKey, colors = ButtonDefaults.buttonColors(containerColor = Panel, contentColor = Lime)) { Text(if (hasIntervalsKey) "Ganti API key" else "Masukkan API key") }
-        OutlinedButton(onClick = onSync, enabled = hasIntervalsKey && !syncBusy) { Text(if (syncBusy) "Menyinkronkan…" else "Sinkronkan sekarang") }
-        if (syncMessage.isNotBlank()) Text(syncMessage, color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
-        SectionTitle("Cadangkan data", "BACKUP JSON · SAF")
-        Text("Ekspor aktivitas, strength, wellness, profil, rencana, PAR-Q, dan pengaturan. Pemulihan menggabungkan data baru tanpa menimpa catatan yang sudah ada. API key tidak ikut diekspor.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onBackupExport, modifier = Modifier.weight(1f)) { Text("Ekspor backup") }
-            OutlinedButton(onClick = onBackupImport, modifier = Modifier.weight(1f)) { Text("Pulihkan backup") }
-        }
-        SectionTitle("Strength", "TARGET MINGGUAN")
-        InfoCard("Target strength", "$strengthTarget hari per minggu", "COACH")
-        OutlinedButton(onClick = onStrengthTarget, modifier = Modifier.fillMaxWidth()) { Text("Atur target strength mingguan") }
-        SectionTitle("Skrining aktivitas", "PAR-Q · 7 PERTANYAAN")
+
+        // ---- Skrining
         val yesCount = parqAnswers.count { it == true }
         val answered = parqAnswers.count { it != null }
-        InfoCard("Status PAR-Q", if (answered < 7) "$answered/7 pertanyaan terisi" else if (yesCount > 0) "$yesCount jawaban YA — perlu tindak lanjut" else "Semua jawaban TIDAK", if (yesCount > 0) "PERHATIAN" else "SKRINING")
-        OutlinedButton(onClick = onParq, modifier = Modifier.fillMaxWidth()) { Text("Isi / perbarui PAR-Q") }
+        SettingsGroup("Skrining aktivitas") {
+            SettingRow(
+                "PAR-Q · 7 pertanyaan",
+                if (answered < 7) "$answered/7 pertanyaan terisi" else if (yesCount > 0) "$yesCount jawaban YA — perlu tindak lanjut" else "Semua jawaban TIDAK",
+                if (yesCount > 0) "Perhatian" else "Isi",
+                onParq,
+                if (yesCount > 0) Color(0xFFFFC36A) else Lime
+            )
+        }
         if (yesCount > 0) Text("Ada jawaban YA. Konsultasikan dengan tenaga kesehatan sebelum memulai atau meningkatkan latihan.", color = Color(0xFFFFC36A), fontSize = 11.sp, lineHeight = 16.sp)
+
+        // ---- Wellness
         var showAllWellness by rememberSaveable(wellness) { mutableStateOf(false) }
         val wellnessToday = java.time.LocalDate.now()
         val validWellness = wellness.filter { item ->
@@ -133,22 +142,39 @@ internal fun SettingsScreen(
             runCatching { java.time.LocalDate.parse(it.date) }.getOrNull()?.let { date -> !date.isBefore(wellnessToday.minusDays(2)) } == true
         }
         val wellnessRows = if (showAllWellness) validWellness else recentWellness
-        SectionTitle("Wellness", "${validWellness.size} HARI VALID")
-        if (wellnessRows.isEmpty()) EmptyCard("Belum ada data wellness valid dalam 3 hari terakhir.")
-        wellnessRows.forEach { item ->
-            InfoCard(
-                RunSenseFormat.strengthDate(item.date),
-                "RHR ${RunSenseFormat.bpm(item.restingHr)} bpm · tidur ${RunSenseFormat.sleepHours(item.sleepHours)} · HRV ${RunSenseFormat.integer(item.hrv)}",
-                "TERSIMPAN"
-            )
+        SettingsGroup("Wellness · ${validWellness.size} hari valid") {
+            if (wellnessRows.isEmpty()) {
+                SettingRow("Belum ada data", "Belum ada data wellness valid dalam 3 hari terakhir.")
+            }
+            wellnessRows.forEachIndexed { index, item ->
+                if (index > 0) GroupDivider()
+                SettingRow(
+                    RunSenseFormat.strengthDate(item.date),
+                    "RHR ${RunSenseFormat.bpm(item.restingHr)} bpm · tidur ${RunSenseFormat.sleepHours(item.sleepHours)} · HRV ${RunSenseFormat.integer(item.hrv)}"
+                )
+            }
+            if (validWellness.size > recentWellness.size) {
+                GroupDivider()
+                TextButton(onClick = { showAllWellness = !showAllWellness }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (showAllWellness) "Tampilkan 3 hari terakhir" else "Lihat semua (${validWellness.size} hari)", color = Lime)
+                }
+            }
+            GroupDivider()
+            GroupBlock { RunButton("＋ Catat wellness hari ini", onWellness, Modifier.fillMaxWidth()) }
         }
-        if (validWellness.size > recentWellness.size) {
-            TextButton(onClick = { showAllWellness = !showAllWellness }, modifier = Modifier.fillMaxWidth()) {
-                Text(if (showAllWellness) "Tampilkan 3 hari terakhir" else "Lihat semua (${validWellness.size} hari)", color = Lime)
+
+        // ---- Backup
+        SettingsGroup("Cadangkan data") {
+            GroupBlock {
+                Text("Ekspor aktivitas, strength, wellness, profil, rencana, PAR-Q, dan pengaturan. Pemulihan menggabungkan data baru tanpa menimpa catatan yang sudah ada. API key tidak ikut diekspor.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    RunButton("Ekspor backup", onBackupExport, Modifier.weight(1f))
+                    RunButton("Pulihkan backup", onBackupImport, Modifier.weight(1f))
+                }
             }
         }
-        OutlinedButton(onClick = onWellness) { Text("＋ Catat wellness hari ini") }
+
         Text("Data aktivitas dan wellness dari Huawei serta Intervals digabung ke riwayat lokal. API key disimpan di penyimpanan privat aplikasi.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+        Spacer(Modifier.height(8.dp))
     }
 }
-

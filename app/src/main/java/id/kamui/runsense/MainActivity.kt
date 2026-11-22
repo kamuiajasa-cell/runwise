@@ -30,6 +30,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.Image
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.text.font.FontWeight
@@ -63,28 +72,32 @@ import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.abs
 
-internal var Ink by mutableStateOf(Color(0xFF0A0A0A))
-internal var Panel by mutableStateOf(Color(0xFF1E1E1E))
-internal var Lime by mutableStateOf(Color(0xFFC6FF38))
-internal var OnLime by mutableStateOf(Color(0xFF0A0A0A))
-internal var Muted by mutableStateOf(Color(0xFF9E9E9E))
-internal var White by mutableStateOf(Color(0xFFFAFAFA))
+internal var Ink by mutableStateOf(Color(0xFF07152D))
+internal var Panel by mutableStateOf(Color(0xFF0D2040))
+internal var Lime by mutableStateOf(Color(0xFF58E83B))
+internal var OnLime by mutableStateOf(Color(0xFF07152D))
+internal var Muted by mutableStateOf(Color(0xFF9AAAC3))
+internal var White by mutableStateOf(Color(0xFFF5F8FF))
+internal var Elev by mutableStateOf(Color(0xFF12294A))
+internal var Edge by mutableStateOf(Color(0x2196B9E6))
 
 internal fun applyRunSenseTheme(light: Boolean) {
-    Ink = if (light) Color(0xFFF1F3ED) else Color(0xFF0A0A0A)
-    Panel = if (light) Color(0xFFFFFFFF) else Color(0xFF1E1E1E)
-    Lime = if (light) Color(0xFF3A6E0C) else Color(0xFFC6FF38)
-    OnLime = if (light) Color.White else Color(0xFF0A0A0A)
-    Muted = if (light) Color(0xFF62695D) else Color(0xFF9E9E9E)
-    White = if (light) Color(0xFF171B14) else Color(0xFFFAFAFA)
+    Ink = if (light) Color(0xFFEFF4FB) else Color(0xFF07152D)
+    Panel = if (light) Color(0xFFFFFFFF) else Color(0xFF0D2040)
+    Lime = if (light) Color(0xFF299D35) else Color(0xFF58E83B)
+    OnLime = if (light) Color.White else Color(0xFF07152D)
+    Muted = if (light) Color(0xFF63728A) else Color(0xFF9AAAC3)
+    White = if (light) Color(0xFF0B1A33) else Color(0xFFF5F8FF)
+    Elev = if (light) Color(0xFFEAF0F8) else Color(0xFF12294A)
+    Edge = if (light) Color(0x1A0F2B52) else Color(0x2196B9E6)
 }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.statusBarColor = android.graphics.Color.rgb(10, 10, 10)
-        window.navigationBarColor = android.graphics.Color.rgb(10, 10, 10)
+        window.statusBarColor = android.graphics.Color.rgb(7, 21, 45)
+        window.navigationBarColor = android.graphics.Color.rgb(7, 21, 45)
         val repository = RunSenseRepository(applicationContext)
         val intervals = NativeIntervalsRuntime(applicationContext)
         setContent { RunSenseNativeApp(repository, intervals) }
@@ -111,7 +124,7 @@ private data class NativeDashboard(
 )
 
 private enum class RunTab(val label: String, val mark: String) {
-    HOME("Beranda", "⌂"), TRAINING("Riwayat", "◷"), PROGRESS("Progress", "↗"),
+    HOME("Hari Ini", "⌂"), TRAINING("Riwayat", "◷"), PROGRESS("Progres", "↗"),
     PROFILE("Saya", "◎"), COACH("Coach", "✦"), WATCH("Jam", "⌚")
 }
 
@@ -148,6 +161,7 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
             showProfile -> showProfile = false
             showApiKey -> showApiKey = false
             showPlanRace -> showPlanRace = false
+            selected == RunTab.COACH || selected == RunTab.WATCH -> selected = RunTab.PROFILE
             selected != RunTab.HOME -> selected = RunTab.HOME
         }
     }
@@ -282,24 +296,13 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
     MaterialTheme(colorScheme = if (lightTheme) lightColorScheme(primary = Lime, background = Ink, surface = Panel, onPrimary = OnLime, onBackground = White, onSurface = White) else darkColorScheme(primary = Lime, background = Ink, surface = Panel, onPrimary = OnLime, onBackground = White, onSurface = White)) {
         if (onboarding) {
             OnboardingScreen(status = syncMessage, onConnect = { showApiKey = true }, onSkip = { repository.saveOnboardingComplete(); onboarding = false; selected = RunTab.HOME })
-        } else Scaffold(
-            containerColor = Ink,
-            bottomBar = {
-                NavigationBar(containerColor = Ink, contentColor = White, tonalElevation = 0.dp) {
-                    primaryTabs.forEach { tab ->
-                        NavigationBarItem(selected = selected == tab, onClick = { selected = tab },
-                            icon = { Text(tab.mark, fontSize = 17.sp) }, label = { Text(tab.label, fontSize = 11.sp, maxLines = 1) },
-                            colors = NavigationBarItemDefaults.colors(selectedIconColor = Lime, selectedTextColor = Lime,
-                                indicatorColor = Lime.copy(alpha = .13f), unselectedIconColor = Muted, unselectedTextColor = Muted))
-                    }
-                }
-            },
-            contentWindowInsets = WindowInsets.safeDrawing
-        ) { padding ->
+        } else Surface(Modifier.fillMaxSize(), color = Ink, contentColor = White) {
+          Column(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f).fillMaxWidth().statusBarsPadding()) {
             when (selected) {
-                RunTab.HOME -> HomeScreen(activities, summary, domainResult, baseSnapshot, planSettings, weather, weatherMessage, dashboard?.lastSyncAt ?: 0L, Modifier.padding(padding), onAdd = { showActivity = true }, onStrength = { showStrength = true }, onRefreshWeather = { refreshWeather() }, onWorkout = { showWorkoutComposer = true }, onViewAll = { selected = RunTab.TRAINING })
+                RunTab.HOME -> HomeScreen(activities, summary, domainResult, baseSnapshot, planSettings, weather, weatherMessage, dashboard?.lastSyncAt ?: 0L, Modifier, onAdd = { showActivity = true }, onStrength = { showStrength = true }, onRefreshWeather = { refreshWeather() }, onWorkout = { showWorkoutComposer = true }, onViewAll = { selected = RunTab.TRAINING })
                 RunTab.TRAINING -> TrainingScreen(
-                    activities, strength, profile, domainResult, baseSnapshot, repository, Modifier.padding(padding),
+                    activities, strength, profile, domainResult, baseSnapshot, repository, Modifier,
                     isRefreshing = syncBusy,
                     onRefresh = {
                         if (!syncBusy) scope.launch {
@@ -316,11 +319,11 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
                     onAdd = { showActivity = true }, onStrength = { showStrength = true }, onCheckin = { checkinActivity = it }
                 )
                 RunTab.PROGRESS -> ProgressScreen(
-                    activities, summary, domainResult, baseSnapshot, repository, strength, profile, Modifier.padding(padding),
+                    activities, summary, domainResult, baseSnapshot, repository, strength, profile, Modifier,
                     onCheckin = { checkinActivity = it }
                 )
-                RunTab.COACH -> CoachScreen(activities, summary, strength, strengthTarget, parqAnswers, domainResult, baseSnapshot, planSettings, weather, weatherMessage, Modifier.padding(padding), onRefreshWeather = { refreshWeather() }, onWorkout = { showWorkoutComposer = true })
-                RunTab.WATCH -> WatchScreen(Modifier.padding(padding)) { json ->
+                RunTab.COACH -> SubPage("Coach", { selected = RunTab.PROFILE }) { CoachScreen(activities, summary, strength, strengthTarget, parqAnswers, domainResult, baseSnapshot, planSettings, weather, weatherMessage, Modifier, onRefreshWeather = { refreshWeather() }, onWorkout = { showWorkoutComposer = true }) }
+                RunTab.WATCH -> SubPage("Jam & koneksi", { selected = RunTab.PROFILE }) { WatchScreen(Modifier) { json ->
                     if (!syncBusy) scope.launch {
                         syncBusy = true
                         syncMessage = "Mengimpor data Huawei…"
@@ -333,9 +336,9 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
                             syncMessage = "Impor Huawei belum berhasil. Periksa file ekspor dan coba lagi."
                         } finally { syncBusy = false }
                     }
-                }
+                } }
                 RunTab.PROFILE -> SettingsScreen(
-                    profile, wellness, Modifier.padding(padding),
+                    profile, wellness, Modifier,
                     onCoach = { selected = RunTab.COACH }, onWatch = { selected = RunTab.WATCH },
                     runWalk = runWalk, lightTheme = lightTheme, coachingStyle = planSettings.style,
                     onRunWalk = { repository.saveRunWalkSettings(it); changed() },
@@ -362,6 +365,9 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
                     }
                 )
             }
+            }
+            RunBottomNav(selected = if (selected == RunTab.COACH || selected == RunTab.WATCH) RunTab.PROFILE else selected, onSelect = { selected = it })
+          }
         }
         checkinActivity?.let { activity ->
             SessionCheckinDialog(activity, onDismiss = { checkinActivity = null }, onSave = { rpe, feel, pain ->
@@ -393,7 +399,7 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
         if (showActivity) ActivityDialog(onDismiss = { showActivity = false }, onSave = { type, duration, distance, hr, load, quality, rpe, feel, pain ->
             repository.addActivity(type, duration, distance, hr, load, quality, rpe, feel, pain); showActivity = false; changed()
         })
-        if (showStrength) StrengthDialog(history = strength, onDismiss = { showStrength = false }, onSave = { category, duration, level, done, exercise, sets, reps, load ->
+        if (showStrength) StrengthDialog(onDismiss = { showStrength = false }, onSave = { category, duration, level, done, exercise, sets, reps, load ->
             repository.addStrength(category, duration, level, done, exercise, sets, reps, load); showStrength = false; changed()
         })
         if (showStrengthTarget) StrengthTargetDialog(strengthTarget, onDismiss = { showStrengthTarget = false }, onSave = { days -> repository.saveWeeklyStrengthTarget(days); showStrengthTarget = false; changed() })
@@ -426,27 +432,139 @@ internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: Native
 }
 
 @Composable
-internal fun OnboardingScreen(status: String, onConnect: () -> Unit, onSkip: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().background(Ink).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 36.dp),
-        verticalArrangement = Arrangement.Center
+private fun RunBottomNav(selected: RunTab, onSelect: (RunTab) -> Unit) {
+    val pill = RoundedCornerShape(23.dp)
+    Box(
+        Modifier.fillMaxWidth().background(Ink).navigationBarsPadding().padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Text("RUNSENSE", color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-        Spacer(Modifier.height(28.dp))
-        Text("Build your", color = White, fontSize = 38.sp, lineHeight = 42.sp, fontWeight = FontWeight.Black)
-        Text("stronger self.", color = Lime, fontSize = 38.sp, lineHeight = 42.sp, fontWeight = FontWeight.Black)
-        Spacer(Modifier.height(12.dp))
-        Text("Hubungkan data latihanmu. RunSense mengubah aktivitas menjadi arahan yang bisa kamu jalani.", color = Muted, fontSize = 14.sp, lineHeight = 21.sp)
-        Spacer(Modifier.height(28.dp))
-        Surface(color = Panel, shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Mulai dengan Intervals.icu", color = White, fontWeight = FontWeight.Bold)
-                Text("API key disimpan di penyimpanan privat perangkat. Kamu juga bisa melanjutkan tanpa sinkronisasi dan mengimpor data jam nanti.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
-                Button(onClick = onConnect, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = OnLime)) { Text("Hubungkan & Mulai") }
-                OutlinedButton(onClick = onSkip, modifier = Modifier.fillMaxWidth()) { Text("Lanjut tanpa sinkron") }
-                if (status.isNotBlank()) Text(status, color = Color(0xFFFFC36A), fontSize = 11.sp, lineHeight = 16.sp)
+        Row(
+            Modifier.widthIn(max = 520.dp).fillMaxWidth().background(Panel, pill).border(1.dp, Edge, pill).padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            primaryTabs.forEach { tab ->
+                val active = tab == selected
+                Column(
+                    Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(16.dp))
+                        .background(if (active) Lime.copy(alpha = .13f) else Color.Transparent)
+                        .clickable(role = Role.Tab, onClick = { onSelect(tab) }),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    NavIcon(tab, if (active) Lime else Muted)
+                    Spacer(Modifier.height(4.dp))
+                    Text(tab.label, color = if (active) Lime else Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun NavIcon(tab: RunTab, color: Color) {
+    Canvas(Modifier.size(22.dp)) {
+        val s = size.width / 24f
+        val line = Stroke(width = 2f * s, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        when (tab) {
+            RunTab.HOME -> {
+                val house = Path().apply {
+                    moveTo(10f * s, 20f * s); lineTo(10f * s, 14f * s); lineTo(14f * s, 14f * s); lineTo(14f * s, 20f * s)
+                    lineTo(19f * s, 20f * s); lineTo(19f * s, 12f * s); lineTo(22f * s, 12f * s); lineTo(12f * s, 3f * s)
+                    lineTo(2f * s, 12f * s); lineTo(5f * s, 12f * s); lineTo(5f * s, 20f * s); close()
+                }
+                drawPath(house, color)
+            }
+            RunTab.TRAINING -> {
+                drawCircle(color, radius = 8.5f * s, center = Offset(12f * s, 12f * s), style = line)
+                drawLine(color, Offset(12f * s, 7f * s), Offset(12f * s, 12f * s), strokeWidth = 2f * s, cap = StrokeCap.Round)
+                drawLine(color, Offset(12f * s, 12f * s), Offset(15.5f * s, 14.5f * s), strokeWidth = 2f * s, cap = StrokeCap.Round)
+            }
+            RunTab.PROGRESS -> {
+                val trend = Path().apply {
+                    moveTo(3f * s, 17f * s); lineTo(9f * s, 11f * s); lineTo(13f * s, 15f * s); lineTo(21f * s, 7f * s)
+                }
+                drawPath(trend, color, style = line)
+                val head = Path().apply {
+                    moveTo(15f * s, 7f * s); lineTo(21f * s, 7f * s); lineTo(21f * s, 13f * s)
+                }
+                drawPath(head, color, style = line)
+            }
+            else -> {
+                drawCircle(color, radius = 4f * s, center = Offset(12f * s, 8f * s))
+                val body = Path().apply {
+                    moveTo(4f * s, 20f * s)
+                    cubicTo(4f * s, 15.5f * s, 8f * s, 14f * s, 12f * s, 14f * s)
+                    cubicTo(16f * s, 14f * s, 20f * s, 15.5f * s, 20f * s, 20f * s)
+                    close()
+                }
+                drawPath(body, color)
+            }
+        }
+    }
+}
+
+/** Halaman turunan (Coach, Jam): bilah kembali di atas, isi di bawah. */
+@Composable
+private fun SubPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            val shape = RoundedCornerShape(14.dp)
+            Box(
+                Modifier.size(40.dp).clip(shape).background(Panel).border(1.dp, Edge, shape).clickable(role = Role.Button, onClick = onBack),
+                contentAlignment = Alignment.Center
+            ) { Text("‹", color = White, fontSize = 26.sp, fontWeight = FontWeight.Bold) }
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text("KEMBALI KE SAYA", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
+                Text(title, color = White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        Box(Modifier.weight(1f).fillMaxWidth()) { content() }
+    }
+}
+
+@Composable
+internal fun OnboardingScreen(status: String, onConnect: () -> Unit, onSkip: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().background(Ink).statusBarsPadding().navigationBarsPadding()
+            .verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 28.dp),
+        verticalArrangement = Arrangement.Center
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            BrandMark(48.dp)
+            Column {
+                Text("RunSense", color = White, fontSize = 20.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.8).sp)
+                Text("Your running, understood.", color = Muted, fontSize = 10.sp)
+            }
+        }
+        Spacer(Modifier.height(34.dp))
+        Text("PERSONAL RUNNING COACH", color = Lime, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
+        Spacer(Modifier.height(13.dp))
+        Text("Build your", color = White, fontSize = 44.sp, lineHeight = 44.sp, fontWeight = FontWeight.Black, letterSpacing = (-2.2).sp)
+        Text("stronger self.", color = Lime, fontSize = 44.sp, lineHeight = 44.sp, fontWeight = FontWeight.Black, letterSpacing = (-2.2).sp)
+        Spacer(Modifier.height(14.dp))
+        Text("Hubungkan data latihanmu. RunSense mengubah aktivitas menjadi arahan yang bisa kamu jalani.", color = Muted, fontSize = 13.sp, lineHeight = 21.sp, modifier = Modifier.widthIn(max = 330.dp))
+        Spacer(Modifier.height(30.dp))
+        val shape = RoundedCornerShape(25.dp)
+        Column(
+            Modifier.fillMaxWidth().background(Panel, shape).border(1.dp, Edge, shape).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Mulai dengan Intervals.icu", color = White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text("API key disimpan di penyimpanan privat perangkat. Kamu juga bisa melanjutkan tanpa sinkronisasi dan mengimpor data jam nanti.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+            RunButton("Hubungkan & Mulai", onConnect, Modifier.fillMaxWidth(), primary = true)
+            RunButton("Lanjut tanpa sinkron", onSkip, Modifier.fillMaxWidth())
+            if (status.isNotBlank()) Text(status, color = Color(0xFFFFC36A), fontSize = 11.sp, lineHeight = 16.sp)
+        }
+    }
+}
+
+/** Logo aplikasi dalam kotak bulat, seperti `.brand-mark` / `.avatar-mark` di HTML. */
+@Composable
+internal fun BrandMark(size: androidx.compose.ui.unit.Dp) {
+    val shape = RoundedCornerShape(size * 0.34f)
+    Box(Modifier.size(size).clip(shape).border(1.dp, Lime.copy(alpha = .35f), shape)) {
+        Image(painterResource(R.drawable.ic_runsense), contentDescription = "RunSense", modifier = Modifier.fillMaxSize())
     }
 }
 
@@ -475,15 +593,14 @@ internal fun RunWalkSettingsCard(value: RunWalkSettings, onSave: (RunWalkSetting
             OutlinedTextField(run, { run = it }, modifier = Modifier.weight(1f), singleLine = true, label = { Text("Durasi lari (mm:ss)") })
             OutlinedTextField(walk, { walk = it }, modifier = Modifier.weight(1f), singleLine = true, label = { Text("Durasi jalan (mm:ss)") })
         }
-        Button(onClick = { onSave(RunWalkSettings(enabled, parseTime(run, value.runSeconds), parseTime(walk, value.walkSeconds))) }, modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Panel, contentColor = Lime)) { Text("Simpan pola run-walk") }
+        RunButton("Simpan pola run-walk", { onSave(RunWalkSettings(enabled, parseTime(run, value.runSeconds), parseTime(walk, value.walkSeconds))) }, Modifier.fillMaxWidth())
         Text("Default RunSense: 3:45 lari + 0:30 jalan. Struktur ini hanya diterapkan pada sesi Coach yang sesuai; target pace dan data aktivitas tidak diubah.", color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
     }
 }
 
 @Composable
 internal fun Page(modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 20.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
 }
 
 @Composable
@@ -494,7 +611,7 @@ internal fun WeeklyPlanHomeCard(snapshot: Snapshot?, settings: com.runnow.domain
     val cutback = snapshot?.cutbackDue() == true
     val planned = PLAN_DAYS.map { d -> d to settings.plan[d] }
     val hasPlan = planned.any { it.second != null }
-    Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Edge, RoundedCornerShape(18.dp))) {
         Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -540,8 +657,8 @@ internal fun ProgressDimensionCard(
     insight: String
 ) {
     var expanded by remember(title) { mutableStateOf(false) }
-    Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Surface(color = Panel, shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Edge, RoundedCornerShape(22.dp))) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth().clickable { expanded = !expanded }, horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(title, color = White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -560,7 +677,7 @@ internal fun ProgressDimensionCard(
                         Text(value, color = White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
                     }
                 }
-                Divider(color = Color.White.copy(alpha = .08f))
+                Divider(color = Edge)
                 Text(insight, color = White, fontSize = 11.sp, lineHeight = 16.sp)
                 Text("KEYAKINAN DATA · ${confidence}", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = .6.sp)
             }
@@ -579,7 +696,7 @@ internal fun WeeklyDistanceChart(activities: List<ActivityRecord>) {
         }.sumOf { it.distanceKm }
     }
     val maxKm = (values.maxOrNull() ?: 0.0).coerceAtLeast(1.0)
-    Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Edge, RoundedCornerShape(18.dp))) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Jarak lari", color = White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -634,7 +751,7 @@ internal fun TrainingTrendChart(activities: List<ActivityRecord>) {
     val minValue = valid.minOrNull() ?: 0.0
     val maxValue = valid.maxOrNull() ?: 1.0
     val range = (maxValue - minValue).coerceAtLeast(if (metric == "pace") 0.15 else 3.0)
-    Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Edge, RoundedCornerShape(18.dp))) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
@@ -700,7 +817,7 @@ internal fun HeartRateZoneChart(activities: List<ActivityRecord>, snapshot: Snap
         sessions.sumOf { it.first[zone] * it.second } / totalMinutes
     }
     val labels = listOf("Z1 · <60% HRR", "Z2 · 60–70% HRR", "Z3 · 70–80% HRR", "Z4 · 80–90% HRR", "Z5 · ≥90% HRR")
-    Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Edge, RoundedCornerShape(18.dp))) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Waktu di zona HR", color = White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -716,7 +833,7 @@ internal fun HeartRateZoneChart(activities: List<ActivityRecord>, snapshot: Snap
                         progress = (value / 100.0).toFloat().coerceIn(0f, 1f),
                         modifier = Modifier.fillMaxWidth().height(6.dp),
                         color = if (index == 1) Lime else Lime.copy(alpha = 0.32f),
-                        trackColor = Color.White.copy(alpha = 0.08f)
+                        trackColor = Elev
                     )
                 }
             }
@@ -735,7 +852,7 @@ internal fun SessionReviewCard(item: ActivityItem, snapshot: Snapshot?, reposito
     val cadence by produceState(initialValue = CadenceAnalyzer.analyze(emptyList(), 5), key1 = rawPoints) {
         value = withContext(Dispatchers.Default) { CadenceAnalyzer.analyze(rawPoints, 5) }
     }
-    Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Edge, RoundedCornerShape(18.dp))) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(item.why.ifBlank { "Analisa sesi tersedia di bawah." }, color = White, fontSize = 12.sp, lineHeight = 17.sp)
             review?.sections?.take(3)?.forEachIndexed { index, section ->
@@ -768,7 +885,7 @@ internal fun SessionReviewCard(item: ActivityItem, snapshot: Snapshot?, reposito
 @Composable
 internal fun WeeklyReviewCard(review: WeeklyReview) {
     val ratio = if (review.targetKm > 0) (review.actualKm / review.targetKm).coerceIn(0.0, 1.0).toFloat() else 0f
-    Surface(color = Panel, shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Panel, shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Edge, RoundedCornerShape(26.dp))) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
             Text("RINGKASAN PELAKSANAAN", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
@@ -781,12 +898,12 @@ internal fun WeeklyReviewCard(review: WeeklyReview) {
                     Text("target yang jatuh tempo", color = Muted, fontSize = 11.sp)
                 }
             }
-            LinearProgressIndicator(progress = ratio, modifier = Modifier.fillMaxWidth().height(7.dp), color = Lime, trackColor = Color.White.copy(alpha = .10f))
+            LinearProgressIndicator(progress = ratio, modifier = Modifier.fillMaxWidth().height(7.dp), color = Lime, trackColor = Elev)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Kepatuhan sesi: ${review.adherencePercent?.let { "$it%" } ?: "belum ada sesi jatuh tempo"}", color = White, fontSize = 11.sp)
                 Text("${review.completedSessions}/${review.dueSessions} selesai", color = Muted, fontSize = 11.sp)
             }
-            Divider(color = Color.White.copy(alpha = .08f))
+            Divider(color = Edge)
             Text("ARAH MINGGU DEPAN", color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             Text(review.adjustment, color = White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Text(review.rationale, color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
@@ -811,20 +928,17 @@ internal fun HomePageHero() {
         else -> "Selamat malam"
     }
     val date = SimpleDateFormat("EEEE, dd MMMM", Locale("id", "ID")).format(Date())
-    Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("RINGKASAN LATIHAN HARI INI", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-            Surface(color = Lime, shape = RoundedCornerShape(10.dp), modifier = Modifier.size(34.dp)) {
-                Box(contentAlignment = Alignment.Center) { Text("R", color = OnLime, fontSize = 20.sp, fontWeight = FontWeight.Black) }
-            }
+    Column(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+            Text("YOUR DAILY RUNNING BRIEF", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp, modifier = Modifier.padding(top = 4.dp))
+            BrandMark(46.dp)
         }
-        Column(verticalArrangement = Arrangement.spacedBy((-3).dp)) {
-            Text("Run with", color = White, fontSize = 36.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.4).sp)
-            Text("your rhythm.", color = Lime, fontSize = 36.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.4).sp)
+        Column {
+            Text("Run with", color = White, fontSize = 38.sp, lineHeight = 39.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.6).sp)
+            Text("your rhythm.", color = Lime, fontSize = 38.sp, lineHeight = 39.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.6).sp)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(greeting, color = White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            Text("·", color = Muted, fontSize = 12.sp)
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(greeting, color = Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Text(date, color = Muted, fontSize = 11.sp)
         }
     }
@@ -832,28 +946,28 @@ internal fun HomePageHero() {
 
 @Composable
 internal fun PageHero(eyebrow: String, title: String, accent: String, subtitle: String) {
-    Column(Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(eyebrow, color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.45.sp)
-        Column(verticalArrangement = Arrangement.spacedBy((-3).dp)) {
-            Text(title, color = White, fontSize = 32.sp, lineHeight = 34.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.1).sp)
-            Text(accent, color = Lime, fontSize = 32.sp, lineHeight = 34.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.1).sp)
+    Column(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(eyebrow, color = Muted, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
+        Column {
+            Text(title, color = White, fontSize = 38.sp, lineHeight = 39.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.6).sp)
+            Text(accent, color = Lime, fontSize = 38.sp, lineHeight = 39.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.6).sp)
         }
-        Text(subtitle, color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+        Text(subtitle, color = Muted, fontSize = 13.sp, lineHeight = 21.sp, modifier = Modifier.widthIn(max = 330.dp))
     }
 }
 
 @Composable
 internal fun SectionKicker(label: String, index: String) {
-    Row(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-        Text(label, color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.35.sp)
-        Box(Modifier.weight(1f).height(1.dp).background(Color.White.copy(alpha = .10f)))
-        Text(index, color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    Row(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(label, color = Muted, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
+        Box(Modifier.weight(1f).height(1.dp).background(Edge))
+        Text(index, color = Muted, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
     }
 }
 
 @Composable
 internal fun HomeWeatherSummary(weather: WeatherSnapshot?, onRefresh: () -> Unit) {
-    Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Edge, RoundedCornerShape(14.dp))) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("CUACA HARI INI", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -881,7 +995,7 @@ internal fun WeatherCard(weather: WeatherSnapshot?, message: String, onRefresh: 
         weather.temperatureC >= 25.0 -> "HANGAT"
         else -> "RELATIF SEJUK"
     }
-    Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Edge, RoundedCornerShape(18.dp))) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("CUACA & KONTEKS LARI", color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
@@ -906,10 +1020,10 @@ internal fun WeatherCard(weather: WeatherSnapshot?, message: String, onRefresh: 
 @Composable
 internal fun CoachRecommendationCard(recommendation: com.runnow.domain.Recommendation?, onWorkout: () -> Unit) {
     if (recommendation == null) return
-    Surface(color = Panel, shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Color.White.copy(alpha = .05f), RoundedCornerShape(26.dp))) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text("REKOMENDASI COACH · ${recommendation.tag}", color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Text(recommendation.title, color = White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+    Surface(color = Panel, shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Edge, RoundedCornerShape(26.dp))) {
+        Column(Modifier.background(Brush.linearGradient(listOf(Lime.copy(alpha = .10f), Color.Transparent))).padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("REKOMENDASI COACH · ${recommendation.tag}", color = Lime, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.2.sp)
+            Text(recommendation.title, color = White, fontSize = 22.sp, lineHeight = 26.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.6).sp)
             Text(listOf(recommendation.duration, recommendation.hr, recommendation.pace).filter { it.isNotBlank() && it != "—" }.joinToString(" · "), color = Lime, fontSize = 11.sp)
             Text(recommendation.reason, color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
             recommendation.steps.forEach { step ->
@@ -918,19 +1032,18 @@ internal fun CoachRecommendationCard(recommendation: com.runnow.domain.Recommend
                     Text(step.second, color = Muted, fontSize = 11.sp)
                 }
             }
-            Button(
-                onClick = onWorkout,
-                enabled = recommendation.status == "train" && recommendation.steps.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = Ink)
-            ) { Text("▶  Kerjakan di jam") }
+            RunButton(
+                "▶  Kerjakan di jam", onWorkout,
+                Modifier.fillMaxWidth().padding(top = 4.dp), primary = true,
+                enabled = recommendation.status == "train" && recommendation.steps.isNotEmpty()
+            )
         }
     }
 }
 
 @Composable
 internal fun ReadinessCard(score: Int?, recommendation: String) {
-    Surface(color = Panel, shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Color.White.copy(alpha = .05f), RoundedCornerShape(26.dp))) {
+    Surface(color = Panel, shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Edge, RoundedCornerShape(26.dp))) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("READINESS HARI INI", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
@@ -940,7 +1053,7 @@ internal fun ReadinessCard(score: Int?, recommendation: String) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.size(82.dp)) {
                     CircularProgressIndicator(progress = ((score ?: 0).coerceIn(0, 100) / 100f), modifier = Modifier.fillMaxSize(),
-                        color = if (score != null && score < 45) Color(0xFFFFB65C) else Lime, trackColor = Color.White.copy(alpha = .10f), strokeWidth = 7.dp)
+                        color = if (score != null && score < 45) Color(0xFFFFB65C) else Lime, trackColor = Elev, strokeWidth = 7.dp)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(score?.toString() ?: "—", color = White, fontSize = 27.sp, fontWeight = FontWeight.Black)
                         Text("/100", color = Muted, fontSize = 11.sp)
@@ -958,10 +1071,10 @@ internal fun ReadinessCard(score: Int?, recommendation: String) {
 
 @Composable
 internal fun MetricCard(label: String, value: String, modifier: Modifier = Modifier) {
-    Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = modifier.border(1.dp, Color.White.copy(alpha = .05f), RoundedCornerShape(16.dp))) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(label, color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Text(value, color = White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+    Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = modifier.border(1.dp, Edge, RoundedCornerShape(16.dp))) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 13.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(label, color = Muted, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.8.sp)
+            Text(value, color = White, fontSize = 20.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.6).sp)
         }
     }
 }
@@ -977,7 +1090,7 @@ internal fun SectionTitle(title: String, action: String) {
 @Composable
 internal fun CheckinActivityCard(activity: ActivityRecord, onCheckin: (ActivityRecord) -> Unit) {
     val stamp = SimpleDateFormat("dd MMM · HH:mm", Locale("id", "ID")).format(Date(activity.startedAt))
-    Surface(color = Panel, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Color.White.copy(alpha = .05f), RoundedCornerShape(20.dp))) {
+    Surface(color = Panel, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Edge, RoundedCornerShape(20.dp))) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -1002,7 +1115,7 @@ internal fun ActivityCard(a: ActivityRecord, profile: AthleteProfile = AthletePr
     Surface(
         color = Panel,
         shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+        modifier = Modifier.fillMaxWidth().border(1.dp, Edge, RoundedCornerShape(16.dp)).clickable(onClick = onClick)
     ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1019,7 +1132,7 @@ internal fun ActivityCard(a: ActivityRecord, profile: AthleteProfile = AthletePr
 
 @Composable
 internal fun InfoCard(title: String, detail: String, tag: String) {
-    Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Edge, RoundedCornerShape(16.dp))) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(title, color = White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
@@ -1032,7 +1145,7 @@ internal fun InfoCard(title: String, detail: String, tag: String) {
 
 @Composable
 internal fun EmptyCard(text: String) {
-    Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Edge, RoundedCornerShape(16.dp))) {
         Text(text, color = Muted, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(16.dp))
     }
 }
@@ -1060,7 +1173,7 @@ internal fun ActivityDialog(onDismiss: () -> Unit, onSave: (String, Double, Doub
             NumberField("Training load eksternal (opsional)", load) { load = it }
             Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(quality, { quality = it }); Text("Sesi quality / intensitas") }
             if (type == "run") {
-                Divider(color = Color.White.copy(alpha = .12f))
+                Divider(color = Edge)
                 Text("Check-in setelah lari", color = Lime, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 Text("RPE · seberapa berat sesi terasa?  ${rpe.roundToInt()}/10", color = White, fontSize = 11.sp)
                 Slider(value = rpe, onValueChange = { rpe = it }, valueRange = 0f..10f, steps = 9)
@@ -1126,7 +1239,7 @@ internal fun SessionCheckinDialog(
 }
 
 @Composable
-internal fun StrengthDialog(history: List<StrengthRecord>, onDismiss: () -> Unit, onSave: (String, Int, Int, Boolean, String, Int, Int, Double) -> Unit) {
+internal fun StrengthDialog(onDismiss: () -> Unit, onSave: (String, Int, Int, Boolean, String, Int, Int, Double) -> Unit) {
     var category by remember { mutableStateOf("leg") }
     var exercise by remember { mutableStateOf("Squat") }
     var duration by remember { mutableStateOf("20") }
@@ -1142,13 +1255,6 @@ internal fun StrengthDialog(history: List<StrengthRecord>, onDismiss: () -> Unit
         else -> listOf("A-skip", "High knees", "Butt kicks", "Drill teknik")
     }
     if (exercise !in exercises) exercise = exercises.first()
-    val suggestion = TrainingEngine.suggestStrength(exercise, history)
-    LaunchedEffect(exercise, history) {
-        level = suggestion.level.toString()
-        sets = suggestion.sets.toString()
-        reps = suggestion.reps.toString()
-        load = suggestion.resistanceKg.toString()
-    }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Catat strength") },
         text = { Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Kelompok otot", color = Muted)
@@ -1157,7 +1263,6 @@ internal fun StrengthDialog(history: List<StrengthRecord>, onDismiss: () -> Unit
             }
             Text("Gerakan", color = Muted)
             exercises.forEach { name -> FilterChip(exercise == name, { exercise = name }, label = { Text(name) }) }
-            Text("Saran progresi: ${suggestion.note}", color = Lime, fontSize = 11.sp, lineHeight = 15.sp)
             NumberField("Durasi (menit)", duration) { duration = it }
             NumberField("Set", sets) { sets = it }
             NumberField("Repetisi per set", reps) { reps = it }
@@ -1260,7 +1365,7 @@ internal fun PlanRaceDialog(
                         }
                     }
                 }
-                Divider(color = Color.White.copy(alpha = .12f))
+                Divider(color = Edge)
                 Text("Target race", color = Lime, fontWeight = FontWeight.Bold)
                 OutlinedTextField(
                     value = raceDate, onValueChange = { raceDate = it },
@@ -1343,14 +1448,12 @@ internal fun ProfileDialog(profile: AthleteProfile, onDismiss: () -> Unit, onSav
     var pace by remember { mutableStateOf("%d:%02d".format(profile.thresholdPaceSecPerKm / 60, profile.thresholdPaceSecPerKm % 60)) }
     var height by remember { mutableStateOf(profile.heightCm.takeIf { it > 0 }?.toString() ?: "") }
     var weight by remember { mutableStateOf(profile.weightKg.takeIf { it > 0 }?.toString() ?: "") }
-    var age by remember { mutableStateOf(profile.ageYears.takeIf { it > 0 }?.toString() ?: "") }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Profil fisiologis & tubuh") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             NumberField("RHR (bpm)", rhr) { rhr = it }
             NumberField("HRmax (bpm)", max) { max = it }
             NumberField("LTHR (bpm)", lt) { lt = it }
             OutlinedTextField(pace, { pace = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("LT pace (mm:ss/km)") })
-            NumberField("Usia (tahun)", age) { age = it }
             NumberField("Tinggi badan (cm)", height) { height = it }
             NumberField("Berat badan (kg)", weight) { weight = it }
         } },
@@ -1361,8 +1464,7 @@ internal fun ProfileDialog(profile: AthleteProfile, onDismiss: () -> Unit, onSav
                 if (parts.size == 2) ((parts[0].toIntOrNull() ?: 6) * 60 + (parts[1].toIntOrNull() ?: 30)).coerceIn(120, 1200)
                 else (pace.toIntOrNull() ?: 390).coerceIn(120, 1200)
             }, height.toIntOrNull()?.coerceIn(100, 230) ?: 0,
-            weight.toDoubleOrNull()?.takeIf { it in 25.0..250.0 } ?: 0.0,
-            age.toIntOrNull()?.coerceIn(0, 120) ?: 0
+            weight.toDoubleOrNull()?.takeIf { it in 25.0..250.0 } ?: 0.0
         )) }) { Text("Simpan") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } })
 }

@@ -2,7 +2,7 @@ package id.kamui.runsense.domain
 
 import kotlin.math.roundToInt
 
-data class AthleteProfile(val restingHr: Int = 63, val maxHr: Int = 185, val thresholdHr: Int = 160, val thresholdPaceSecPerKm: Int = 390, val heightCm: Int = 0, val weightKg: Double = 0.0, val ageYears: Int = 0)
+data class AthleteProfile(val restingHr: Int = 63, val maxHr: Int = 185, val thresholdHr: Int = 160, val thresholdPaceSecPerKm: Int = 390, val heightCm: Int = 0, val weightKg: Double = 0.0)
 data class ActivityRecord(val id: String, val startedAt: Long, val type: String, val durationMin: Double, val distanceKm: Double, val averageHr: Int, val externalLoad: Double = 0.0, val quality: Boolean = false, val rpe: Int = 0, val feel: String = "", val pain: Int = 0)
 data class StrengthRecord(val id: String, val date: String, val category: String, val durationMin: Int, val level: Int, val completed: Boolean, val exercise: String = "", val sets: Int = 0, val reps: Int = 0, val resistanceKg: Double = 0.0)
 data class WellnessRecord(val date: String, val restingHr: Int = 0, val sleepHours: Double = 0.0, val hrv: Double = 0.0)
@@ -10,44 +10,8 @@ data class RunWalkSettings(val enabled: Boolean = false, val runSeconds: Int = 2
 data class WeatherSnapshot(val temperatureC: Double, val apparentC: Double, val humidityPct: Int, val windKmh: Double, val precipitationMm: Double, val weatherCode: Int, val fetchedAt: Long, val latitude: Double, val longitude: Double)
 data class TrainingSummary(val acuteLoad: Double, val chronicLoad: Double, val acwr: Double?, val readiness: Int?, val strengthLoad48h: Double, val legStrengthLoad48h: Double, val qualitySessions7d: Int, val recommendation: String, val rationale: List<String>)
 
-data class StrengthSuggestion(
-    val level: Int,
-    val sets: Int,
-    val reps: Int,
-    val resistanceKg: Double,
-    val note: String
-)
-
 object TrainingEngine {
     private const val DAY = 86_400_000L
-
-    /** Conservative per-exercise progression inferred only from the saved log. */
-    fun suggestStrength(exercise: String, history: List<StrengthRecord>): StrengthSuggestion {
-        val records = history.filter { it.exercise.equals(exercise, ignoreCase = true) }.sortedBy { it.date }
-        val latest = records.lastOrNull()
-            ?: return StrengthSuggestion(1, 3, 10, 0.0, "Mulai dari dosis dasar; utamakan teknik yang nyaman.")
-        val level = latest.level.coerceIn(0, 4)
-        val sets = latest.sets.takeIf { it > 0 } ?: 3
-        val reps = latest.reps.takeIf { it > 0 } ?: 10
-        val resistance = latest.resistanceKg.coerceAtLeast(0.0)
-        if (!latest.completed) {
-            return StrengthSuggestion((level - 1).coerceAtLeast(0), sets.coerceAtMost(2).coerceAtLeast(1),
-                reps.coerceAtMost(8).coerceAtLeast(6), resistance,
-                "Sesi terakhir dilewati: ulangi dengan dosis lebih ringan, tanpa mengejar progres.")
-        }
-        val lastTwo = records.takeLast(2)
-        if (lastTwo.size < 2 || lastTwo.any { !it.completed }) {
-            return StrengthSuggestion(level, sets, reps, resistance,
-                "Pertahankan dosis terakhir. Progresi menunggu dua sesi berturut-turut selesai.")
-        }
-        return if (reps >= 12) {
-            StrengthSuggestion((level + 1).coerceAtMost(4), (sets + 1).coerceAtMost(5), 8, resistance,
-                "Dua sesi terakhir selesai: naikkan satu tingkat dengan set tambahan dan repetisi lebih rendah.")
-        } else {
-            StrengthSuggestion(level, sets, (reps + 1).coerceAtMost(12), resistance,
-                "Dua sesi terakhir selesai: tambah satu repetisi per set, tanpa menaikkan beban sekaligus.")
-        }
-    }
 
     fun activityLoad(a: ActivityRecord, profile: AthleteProfile): Double {
         if (a.externalLoad > 0) return a.externalLoad
@@ -59,31 +23,19 @@ object TrainingEngine {
         return (a.durationMin / 60.0 * 100.0 * factor * factor).roundToInt().toDouble()
     }
 
-    private fun strengthDose(item: StrengthRecord): Double {
-        val categoryWeight = when (item.category) {
-            "hip" -> 1.0
-            "calf" -> 1.2
-            "leg" -> 1.25
-            "core" -> 0.1
-            "drill" -> 0.55
-            else -> 0.5
-        }
-        val effortDose = categoryWeight * (1.0 + item.level.coerceIn(0, 4) * 0.45)
-        val volumeMultiplier = if (item.sets > 0 && item.reps > 0) {
-            (item.sets.toDouble() * item.reps / 30.0).coerceIn(0.5, 2.0)
-        } else 1.0
-        val externalLoadMultiplier = 1.0 + item.resistanceKg.coerceIn(0.0, 40.0) / 80.0
-        return effortDose * volumeMultiplier * externalLoadMultiplier
-    }
-
     fun strengthLoad48h(strength: List<StrengthRecord>, now: Long = System.currentTimeMillis()): Pair<Double, Double> {
-        var total = 0.0
-        var legs = 0.0
+        val weights = mapOf("hip" to 1.0, "calf" to 1.2, "leg" to 1.25, "core" to 0.1, "drill" to 0.55)
+        var total = 0.0; var legs = 0.0
         strength.filter { it.completed }.forEach { item ->
             val stamp = parseDate(item.date) ?: return@forEach
             val age = now - stamp
             if (age < -12 * 60 * 60 * 1000L || age > 48 * 60 * 60 * 1000L) return@forEach
-            val dose = strengthDose(item)
+            val effortDose = (weights[item.category] ?: 0.5) * (1.0 + item.level.coerceIn(0, 4) * 0.45)
+            val volumeMultiplier = if (item.sets > 0 && item.reps > 0) {
+                (item.sets.toDouble() * item.reps / 30.0).coerceIn(0.5, 2.0)
+            } else 1.0
+            val externalLoadMultiplier = 1.0 + item.resistanceKg.coerceIn(0.0, 40.0) / 80.0
+            val dose = effortDose * volumeMultiplier * externalLoadMultiplier
             total += dose
             if (item.category in setOf("hip", "calf", "leg", "drill")) legs += dose
         }
@@ -98,9 +50,8 @@ object TrainingEngine {
         val hard = activities.count { now - it.startedAt in 0..(7 * DAY) && it.quality && it.type == "run" }
         val reasons = mutableListOf<String>()
         var score = 70; var inputs = 0
-        val orderedWellness = wellness.sortedBy { it.date }
-        val recent = orderedWellness.takeLast(3)
-        val baseline = orderedWellness.dropLast(3).filter { it.restingHr > 30 }.map { it.restingHr }.sorted()
+        val recent = wellness.sortedBy { it.date }.takeLast(3)
+        val baseline = wellness.filter { it.restingHr > 30 }.dropLast(3).map { it.restingHr }.sorted()
         if (recent.any { it.restingHr > 30 } && baseline.size >= 5) {
             val current = recent.filter { it.restingHr > 30 }.map { it.restingHr }.average()
             val delta = current - baseline[baseline.size / 2]

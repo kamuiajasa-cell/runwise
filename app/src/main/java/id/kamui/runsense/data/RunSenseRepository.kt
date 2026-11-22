@@ -76,13 +76,10 @@ class RunSenseRepository(context: Context) {
             o.optInt("reps").coerceAtLeast(0), resistance)
     }.sortedByDescending { it.date }
 
-    private fun validWellnessDate(raw: String): Boolean {
-        val parsed = runCatching { java.time.LocalDate.parse(raw) }.getOrNull() ?: return false
-        return !parsed.isAfter(java.time.LocalDate.now())
-    }
+    private fun validWellnessDate(raw: String): Boolean = isValidWellnessDate(raw)
 
     private fun finitePositive(o: JSONObject, key: String): Double? =
-        if (!o.has(key) || o.isNull(key)) null else o.optDouble(key, Double.NaN).takeIf { it.isFinite() && it > 0.0 }
+        if (!o.has(key) || o.isNull(key)) null else finitePositiveWellnessMetric(o.optDouble(key, Double.NaN))
 
     fun wellness(): List<WellnessRecord> {
         val raw = readArray("wellness")

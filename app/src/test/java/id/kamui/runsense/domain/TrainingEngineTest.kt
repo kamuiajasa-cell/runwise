@@ -155,4 +155,60 @@ class TrainingEngineTest {
         assertNull(summary.readiness)
     }
 
+
+    @Test fun strengthDurationDoseIgnoresSetsAndReps() {
+        val short = StrengthRecord("t1", "2026-11-22", "core", 5, 2, true, "Plank", 0, 0, 0.0, "duration")
+        val long = short.copy(id = "t2", durationMin = 10, sets = 5, reps = 20)
+        assertTrue(TrainingEngine.strengthDose(long) > TrainingEngine.strengthDose(short))
+        assertEquals(TrainingEngine.strengthDose(short), TrainingEngine.strengthDose(short.copy(sets = 5, reps = 20)), 0.001)
+    }
+
+    @Test fun strengthRepDoseIgnoresDuration() {
+        val base = StrengthRecord("r1", "2026-11-22", "leg", 0, 2, true, "Squat", 3, 10, 0.0, "reps")
+        val changedDuration = base.copy(id = "r2", durationMin = 90)
+        val higherReps = base.copy(id = "r3", sets = 4, reps = 12)
+        assertEquals(TrainingEngine.strengthDose(base), TrainingEngine.strengthDose(changedDuration), 0.001)
+        assertTrue(TrainingEngine.strengthDose(higherReps) > TrainingEngine.strengthDose(base))
+    }
+
+    @Test fun timedExerciseProgressionUsesOnlyDuration() {
+        val history = listOf(
+            StrengthRecord("p1", "2026-11-15", "core", 3, 1, true, "Plank", 0, 0, 0.0, "duration"),
+            StrengthRecord("p2", "2026-11-20", "core", 3, 1, true, "Plank", 0, 0, 0.0, "duration")
+        )
+        val suggestion = TrainingEngine.suggestStrength("Plank", history)
+        assertEquals("duration", suggestion.doseType)
+        assertEquals(4, suggestion.durationMin)
+        assertEquals(0, suggestion.sets)
+        assertEquals(0, suggestion.reps)
+    }
+
+    @Test fun repExerciseProgressionUsesOnlySetsAndReps() {
+        val history = listOf(
+            StrengthRecord("s1", "2026-11-15", "leg", 0, 1, true, "Squat", 3, 10, 0.0, "reps"),
+            StrengthRecord("s2", "2026-11-20", "leg", 0, 1, true, "Squat", 3, 10, 0.0, "reps")
+        )
+        val suggestion = TrainingEngine.suggestStrength("Squat", history)
+        assertEquals("reps", suggestion.doseType)
+        assertEquals(3, suggestion.sets)
+        assertEquals(11, suggestion.reps)
+        assertEquals(0, suggestion.durationMin)
+    }
+
+    @Test fun wellnessBaselineIsChronologicalEvenWhenInputIsUnordered() {
+        val wellness = listOf(
+            WellnessRecord("2026-11-20", 70),
+            WellnessRecord("2026-11-03", 60),
+            WellnessRecord("2026-11-21", 70),
+            WellnessRecord("2026-11-05", 60),
+            WellnessRecord("2026-11-22", 70),
+            WellnessRecord("2026-11-01", 60),
+            WellnessRecord("2026-11-07", 60),
+            WellnessRecord("2026-11-09", 60),
+            WellnessRecord("2026-11-11", 60)
+        )
+        val summary = TrainingEngine.summarize(emptyList(), emptyList(), wellness, AthleteProfile(), System.currentTimeMillis())
+        assertTrue(summary.rationale.any { it.contains("RHR naik 10 bpm") })
+    }
+
 }

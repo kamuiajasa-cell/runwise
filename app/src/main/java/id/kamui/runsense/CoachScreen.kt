@@ -63,6 +63,7 @@ import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.abs
 
+@Composable
 internal fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSummary, strength: List<StrengthRecord>, strengthTarget: Int, parqAnswers: List<Boolean?>, domainResult: com.runnow.domain.ProcessResult?, snapshot: Snapshot?, planSettings: com.runnow.domain.Settings, weather: WeatherSnapshot?, weatherMessage: String, modifier: Modifier, onRefreshWeather: () -> Unit, onWorkout: () -> Unit) {
     Page(modifier) {
         PageHero("PELATIHAN ADAPTIF", "Train with", "better insight.", "Evaluasi beban, pemulihan, strength, dan kondisi cuaca.")
@@ -186,4 +187,3 @@ internal fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSumm
     }
 }
 
-@Composable

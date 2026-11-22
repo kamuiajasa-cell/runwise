@@ -1335,12 +1335,14 @@ internal fun ProfileDialog(profile: AthleteProfile, onDismiss: () -> Unit, onSav
     var pace by remember { mutableStateOf("%d:%02d".format(profile.thresholdPaceSecPerKm / 60, profile.thresholdPaceSecPerKm % 60)) }
     var height by remember { mutableStateOf(profile.heightCm.takeIf { it > 0 }?.toString() ?: "") }
     var weight by remember { mutableStateOf(profile.weightKg.takeIf { it > 0 }?.toString() ?: "") }
+    var age by remember { mutableStateOf(profile.ageYears.takeIf { it > 0 }?.toString() ?: "") }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Profil fisiologis & tubuh") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             NumberField("RHR (bpm)", rhr) { rhr = it }
             NumberField("HRmax (bpm)", max) { max = it }
             NumberField("LTHR (bpm)", lt) { lt = it }
             OutlinedTextField(pace, { pace = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("LT pace (mm:ss/km)") })
+            NumberField("Usia (tahun)", age) { age = it }
             NumberField("Tinggi badan (cm)", height) { height = it }
             NumberField("Berat badan (kg)", weight) { weight = it }
         } },
@@ -1351,7 +1353,8 @@ internal fun ProfileDialog(profile: AthleteProfile, onDismiss: () -> Unit, onSav
                 if (parts.size == 2) ((parts[0].toIntOrNull() ?: 6) * 60 + (parts[1].toIntOrNull() ?: 30)).coerceIn(120, 1200)
                 else (pace.toIntOrNull() ?: 390).coerceIn(120, 1200)
             }, height.toIntOrNull()?.coerceIn(100, 230) ?: 0,
-            weight.toDoubleOrNull()?.takeIf { it in 25.0..250.0 } ?: 0.0
+            weight.toDoubleOrNull()?.takeIf { it in 25.0..250.0 } ?: 0.0,
+            age.toIntOrNull()?.coerceIn(0, 120) ?: 0
         )) }) { Text("Simpan") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } })
 }

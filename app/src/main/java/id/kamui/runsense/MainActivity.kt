@@ -1242,7 +1242,7 @@ internal fun SessionCheckinDialog(
 internal fun StrengthDialog(onDismiss: () -> Unit, onSave: (String, Int, Int, Boolean, String, Int, Int, Double) -> Unit) {
     var category by remember { mutableStateOf("leg") }
     var exercise by remember { mutableStateOf("Squat") }
-    var duration by remember { mutableStateOf("20") }
+    var duration by remember { mutableStateOf("1") }
     var level by remember { mutableStateOf("1") }
     var sets by remember { mutableStateOf("3") }
     var reps by remember { mutableStateOf("10") }

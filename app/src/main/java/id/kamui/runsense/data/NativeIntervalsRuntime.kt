@@ -22,6 +22,7 @@ import com.runnow.domain.ClimSlot
 import com.runnow.domain.clPers
 import com.runnow.domain.clProfile
 import com.runnow.domain.clSlots
+import com.runnow.domain.climDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection

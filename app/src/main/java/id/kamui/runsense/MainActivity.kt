@@ -1263,14 +1263,30 @@ internal fun StrengthDialog(onDismiss: () -> Unit, onSave: (String, Int, Int, Bo
             }
             Text("Gerakan", color = Muted)
             exercises.forEach { name -> FilterChip(exercise == name, { exercise = name }, label = { Text(name) }) }
-            NumberField("Durasi (menit)", duration) { duration = it }
-            NumberField("Set", sets) { sets = it }
-            NumberField("Repetisi per set", reps) { reps = it }
+            val timed = isDurationBasedStrengthExercise(exercise)
+            Text(if (timed) "Dosis berbasis waktu" else "Dosis berbasis repetisi", color = Lime, fontWeight = FontWeight.Bold)
+            if (timed) {
+                NumberField("Durasi total (menit)", duration) { duration = it }
+                Text("Contoh: plank, side plank, wall sit. Catat durasi saja; set dan repetisi tidak dipakai.", color = Muted, fontSize = 11.sp)
+            } else {
+                NumberField("Set", sets) { sets = it }
+                NumberField("Repetisi per set", reps) { reps = it }
+                Text("Catat set dan repetisi saja. Durasi tidak dipakai dalam dosis gerakan ini.", color = Muted, fontSize = 11.sp)
+            }
             NumberField("Beban eksternal (kg, opsional)", load) { load = it }
             NumberField("Level effort 0–4", level) { level = it }
         } },
-        confirmButton = { TextButton(onClick = { onSave(category, (duration.toIntOrNull() ?: 0).coerceAtLeast(0), (level.toIntOrNull() ?: 0).coerceIn(0,4), true, exercise, (sets.toIntOrNull() ?: 0).coerceAtLeast(0), (reps.toIntOrNull() ?: 0).coerceAtLeast(0), (load.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)) }) { Text("Simpan sesi") } },
-        dismissButton = { TextButton(onClick = { onSave(category, (duration.toIntOrNull() ?: 0), (level.toIntOrNull() ?: 0).coerceIn(0,4), false, exercise, 0, 0, 0.0) }) { Text("Skip") } })
+        confirmButton = { TextButton(onClick = {
+            val timed = isDurationBasedStrengthExercise(exercise)
+            onSave(category, if (timed) (duration.toIntOrNull() ?: 0).coerceAtLeast(0) else 0,
+                (level.toIntOrNull() ?: 0).coerceIn(0,4), true, exercise,
+                if (timed) 0 else (sets.toIntOrNull() ?: 0).coerceAtLeast(0),
+                if (timed) 0 else (reps.toIntOrNull() ?: 0).coerceAtLeast(0),
+                (load.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0))
+        }) { Text("Simpan sesi") } },
+        dismissButton = { TextButton(onClick = {
+            onSave(category, 0, (level.toIntOrNull() ?: 0).coerceIn(0,4), false, exercise, 0, 0, 0.0)
+        }) { Text("Skip") } })
 }
 
 @Composable
@@ -1448,6 +1464,7 @@ internal fun ProfileDialog(profile: AthleteProfile, onDismiss: () -> Unit, onSav
     var pace by remember { mutableStateOf("%d:%02d".format(profile.thresholdPaceSecPerKm / 60, profile.thresholdPaceSecPerKm % 60)) }
     var height by remember { mutableStateOf(profile.heightCm.takeIf { it > 0 }?.toString() ?: "") }
     var weight by remember { mutableStateOf(profile.weightKg.takeIf { it > 0 }?.toString() ?: "") }
+    var age by remember { mutableStateOf(profile.ageYears.takeIf { it > 0 }?.toString() ?: "") }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Profil fisiologis & tubuh") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             NumberField("RHR (bpm)", rhr) { rhr = it }
@@ -1456,6 +1473,7 @@ internal fun ProfileDialog(profile: AthleteProfile, onDismiss: () -> Unit, onSav
             OutlinedTextField(pace, { pace = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("LT pace (mm:ss/km)") })
             NumberField("Tinggi badan (cm)", height) { height = it }
             NumberField("Berat badan (kg)", weight) { weight = it }
+            NumberField("Usia (tahun)", age) { age = it }
         } },
         confirmButton = { TextButton(onClick = { onSave(AthleteProfile(
             rhr.toIntOrNull() ?: 63, max.toIntOrNull() ?: 185, lt.toIntOrNull() ?: 160,
@@ -1464,7 +1482,8 @@ internal fun ProfileDialog(profile: AthleteProfile, onDismiss: () -> Unit, onSav
                 if (parts.size == 2) ((parts[0].toIntOrNull() ?: 6) * 60 + (parts[1].toIntOrNull() ?: 30)).coerceIn(120, 1200)
                 else (pace.toIntOrNull() ?: 390).coerceIn(120, 1200)
             }, height.toIntOrNull()?.coerceIn(100, 230) ?: 0,
-            weight.toDoubleOrNull()?.takeIf { it in 25.0..250.0 } ?: 0.0
+            weight.toDoubleOrNull()?.takeIf { it in 25.0..250.0 } ?: 0.0,
+            age.toIntOrNull()?.coerceIn(0, 120) ?: 0
         )) }) { Text("Simpan") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } })
 }

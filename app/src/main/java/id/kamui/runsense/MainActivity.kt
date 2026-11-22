@@ -80,7 +80,7 @@ internal fun applyRunSenseTheme(light: Boolean) {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = android.graphics.Color.rgb(10, 10, 10)
         window.navigationBarColor = android.graphics.Color.rgb(10, 10, 10)
         val repository = RunSenseRepository(applicationContext)
@@ -116,7 +116,7 @@ private enum class RunTab(val label: String, val mark: String) {
 private val primaryTabs = listOf(RunTab.HOME, RunTab.TRAINING, RunTab.PROGRESS, RunTab.PROFILE)
 
 @Composable
-private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeIntervalsRuntime) {
+internal fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeIntervalsRuntime) {
     var selected by rememberSaveable { mutableStateOf(RunTab.HOME) }
     var lightTheme by remember { mutableStateOf(repository.isLightTheme()) }
     var onboarding by remember { mutableStateOf(false) }
@@ -172,7 +172,7 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
                     repository.importBackupJson(raw)
                 }
             }.onSuccess { result ->
-                changed()
+                revision++
                 syncMessage = "Pulihkan backup: ${result.activitiesAdded} aktivitas, ${result.strengthAdded} strength, ${result.wellnessAdded} wellness, ${result.settingsAdded} pengaturan ditambahkan; ${result.skipped} dilewati (data lama dipertahankan)."
             }.onFailure { syncMessage = "Pemulihan gagal: ${it.message ?: "file tidak valid"}" }
         }
@@ -412,7 +412,7 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
 }
 
 @Composable
-private fun OnboardingScreen(status: String, onConnect: () -> Unit, onSkip: () -> Unit) {
+internal fun OnboardingScreen(status: String, onConnect: () -> Unit, onSkip: () -> Unit) {
     Column(
         Modifier.fillMaxSize().background(Ink).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 36.dp),
         verticalArrangement = Arrangement.Center
@@ -437,7 +437,7 @@ private fun OnboardingScreen(status: String, onConnect: () -> Unit, onSkip: () -
 }
 
 @Composable
-private fun RunWalkSettingsCard(value: RunWalkSettings, onSave: (RunWalkSettings) -> Unit) {
+internal fun RunWalkSettingsCard(value: RunWalkSettings, onSave: (RunWalkSettings) -> Unit) {
     var enabled by remember(value) { mutableStateOf(value.enabled) }
     var run by remember(value) { mutableStateOf("%d:%02d".format(value.runSeconds / 60, value.runSeconds % 60)) }
     var walk by remember(value) { mutableStateOf("%d:%02d".format(value.walkSeconds / 60, value.walkSeconds % 60)) }
@@ -468,12 +468,12 @@ private fun RunWalkSettingsCard(value: RunWalkSettings, onSave: (RunWalkSettings
 }
 
 @Composable
-private fun Page(modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
+internal fun Page(modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 20.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
 }
 
 @Composable
-private fun WeeklyPlanHomeCard(snapshot: Snapshot?, settings: com.runnow.domain.Settings) {
+internal fun WeeklyPlanHomeCard(snapshot: Snapshot?, settings: com.runnow.domain.Settings) {
     val days = listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min")
     val phase = snapshot?.racePhase()
     val flag = snapshot?.flagInfo()
@@ -517,7 +517,7 @@ private fun WeeklyPlanHomeCard(snapshot: Snapshot?, settings: com.runnow.domain.
     }
 }
 @Composable
-private fun ProgressDimensionCard(
+internal fun ProgressDimensionCard(
     title: String,
     subtitle: String,
     status: String,
@@ -555,7 +555,7 @@ private fun ProgressDimensionCard(
 }
 
 @Composable
-private fun WeeklyDistanceChart(activities: List<ActivityRecord>) {
+internal fun WeeklyDistanceChart(activities: List<ActivityRecord>) {
     val today = java.time.LocalDate.now()
     val dates = (6 downTo 0).map { today.minusDays(it.toLong()) }
     val values = dates.map { date ->
@@ -596,7 +596,7 @@ private fun WeeklyDistanceChart(activities: List<ActivityRecord>) {
 }
 
 @Composable
-private fun TrainingTrendChart(activities: List<ActivityRecord>) {
+internal fun TrainingTrendChart(activities: List<ActivityRecord>) {
     var metric by remember { mutableStateOf("pace") }
     val today = java.time.LocalDate.now()
     val currentMonday = today.minusDays((today.dayOfWeek.value - 1).toLong())
@@ -670,7 +670,7 @@ private fun TrainingTrendChart(activities: List<ActivityRecord>) {
 }
 
 @Composable
-private fun HeartRateZoneChart(activities: List<ActivityRecord>, snapshot: Snapshot?) {
+internal fun HeartRateZoneChart(activities: List<ActivityRecord>, snapshot: Snapshot?) {
     val cutoff = System.currentTimeMillis() - 28L * 86_400_000L
     val sessions = activities.filter { it.type.equals("run", true) && it.startedAt >= cutoff }.mapNotNull { activity ->
         val zones = snapshot?.streams?.get(activity.id)?.tiz ?: return@mapNotNull null
@@ -712,7 +712,7 @@ private fun HeartRateZoneChart(activities: List<ActivityRecord>, snapshot: Snaps
 }
 
 @Composable
-private fun SessionReviewCard(item: ActivityItem, snapshot: Snapshot?, repository: RunSenseRepository) {
+internal fun SessionReviewCard(item: ActivityItem, snapshot: Snapshot?, repository: RunSenseRepository) {
     val review = remember(item.act, snapshot) { snapshot?.reviewRun(item.act) }
     val streamKey = item.act.icuId ?: item.act.lid
     val rawPoints by produceState<List<RawStreamPoint>>(initialValue = emptyList(), key1 = streamKey, key2 = snapshot) {
@@ -752,7 +752,7 @@ private fun SessionReviewCard(item: ActivityItem, snapshot: Snapshot?, repositor
     }
 }
 @Composable
-private fun WeeklyReviewCard(review: WeeklyReview) {
+internal fun WeeklyReviewCard(review: WeeklyReview) {
     val ratio = if (review.targetKm > 0) (review.actualKm / review.targetKm).coerceIn(0.0, 1.0).toFloat() else 0f
     Surface(color = Panel, shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
@@ -788,7 +788,7 @@ private fun WeeklyReviewCard(review: WeeklyReview) {
 }
 
 @Composable
-private fun HomePageHero() {
+internal fun HomePageHero() {
     val hour = java.time.LocalTime.now().hour
     val greeting = when (hour) {
         in 4..10 -> "Selamat pagi"
@@ -817,7 +817,7 @@ private fun HomePageHero() {
 }
 
 @Composable
-private fun PageHero(eyebrow: String, title: String, accent: String, subtitle: String) {
+internal fun PageHero(eyebrow: String, title: String, accent: String, subtitle: String) {
     Column(Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(eyebrow, color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.45.sp)
         Column(verticalArrangement = Arrangement.spacedBy((-3).dp)) {
@@ -829,7 +829,7 @@ private fun PageHero(eyebrow: String, title: String, accent: String, subtitle: S
 }
 
 @Composable
-private fun SectionKicker(label: String, index: String) {
+internal fun SectionKicker(label: String, index: String) {
     Row(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
         Text(label, color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.35.sp)
         Box(Modifier.weight(1f).height(1.dp).background(Color.White.copy(alpha = .10f)))
@@ -838,7 +838,7 @@ private fun SectionKicker(label: String, index: String) {
 }
 
 @Composable
-private fun HomeWeatherSummary(weather: WeatherSnapshot?, onRefresh: () -> Unit) {
+internal fun HomeWeatherSummary(weather: WeatherSnapshot?, onRefresh: () -> Unit) {
     Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -857,7 +857,7 @@ private fun HomeWeatherSummary(weather: WeatherSnapshot?, onRefresh: () -> Unit)
 }
 
 @Composable
-private fun WeatherCard(weather: WeatherSnapshot?, message: String, onRefresh: () -> Unit) {
+internal fun WeatherCard(weather: WeatherSnapshot?, message: String, onRefresh: () -> Unit) {
     val status = when {
         weather == null -> "BELUM DIMUAT"
         weather.weatherCode >= 95 -> "PETIR"
@@ -890,7 +890,7 @@ private fun WeatherCard(weather: WeatherSnapshot?, message: String, onRefresh: (
 }
 
 @Composable
-private fun CoachRecommendationCard(recommendation: com.runnow.domain.Recommendation?, onWorkout: () -> Unit) {
+internal fun CoachRecommendationCard(recommendation: com.runnow.domain.Recommendation?, onWorkout: () -> Unit) {
     if (recommendation == null) return
     Surface(color = Panel, shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Color.White.copy(alpha = .05f), RoundedCornerShape(26.dp))) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -915,7 +915,7 @@ private fun CoachRecommendationCard(recommendation: com.runnow.domain.Recommenda
 }
 
 @Composable
-private fun ReadinessCard(score: Int?, recommendation: String) {
+internal fun ReadinessCard(score: Int?, recommendation: String) {
     Surface(color = Panel, shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Color.White.copy(alpha = .05f), RoundedCornerShape(26.dp))) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -943,7 +943,7 @@ private fun ReadinessCard(score: Int?, recommendation: String) {
 }
 
 @Composable
-private fun MetricCard(label: String, value: String, modifier: Modifier = Modifier) {
+internal fun MetricCard(label: String, value: String, modifier: Modifier = Modifier) {
     Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = modifier.border(1.dp, Color.White.copy(alpha = .05f), RoundedCornerShape(16.dp))) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(label, color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -953,7 +953,7 @@ private fun MetricCard(label: String, value: String, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun SectionTitle(title: String, action: String) {
+internal fun SectionTitle(title: String, action: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Text(title, color = White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Text(action, color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -961,7 +961,7 @@ private fun SectionTitle(title: String, action: String) {
 }
 
 @Composable
-private fun CheckinActivityCard(activity: ActivityRecord, onCheckin: (ActivityRecord) -> Unit) {
+internal fun CheckinActivityCard(activity: ActivityRecord, onCheckin: (ActivityRecord) -> Unit) {
     val stamp = SimpleDateFormat("dd MMM · HH:mm", Locale("id", "ID")).format(Date(activity.startedAt))
     Surface(color = Panel, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Color.White.copy(alpha = .05f), RoundedCornerShape(20.dp))) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -983,7 +983,7 @@ private fun CheckinActivityCard(activity: ActivityRecord, onCheckin: (ActivityRe
 }
 
 @Composable
-private fun ActivityCard(a: ActivityRecord, profile: AthleteProfile = AthleteProfile(), onClick: () -> Unit = {}) {
+internal fun ActivityCard(a: ActivityRecord, profile: AthleteProfile = AthleteProfile(), onClick: () -> Unit = {}) {
     val stamp = SimpleDateFormat("dd MMM · HH:mm", Locale("id", "ID")).format(Date(a.startedAt))
     Surface(
         color = Panel,
@@ -1004,7 +1004,7 @@ private fun ActivityCard(a: ActivityRecord, profile: AthleteProfile = AthletePro
 }
 
 @Composable
-private fun InfoCard(title: String, detail: String, tag: String) {
+internal fun InfoCard(title: String, detail: String, tag: String) {
     Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1017,14 +1017,14 @@ private fun InfoCard(title: String, detail: String, tag: String) {
 }
 
 @Composable
-private fun EmptyCard(text: String) {
+internal fun EmptyCard(text: String) {
     Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
         Text(text, color = Muted, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(16.dp))
     }
 }
 
 @Composable
-private fun ActivityDialog(onDismiss: () -> Unit, onSave: (String, Double, Double, Int, Double, Boolean, Int, String, Int) -> Unit) {
+internal fun ActivityDialog(onDismiss: () -> Unit, onSave: (String, Double, Double, Int, Double, Boolean, Int, String, Int) -> Unit) {
     var type by remember { mutableStateOf("run") }
     var duration by remember { mutableStateOf("30") }
     var distance by remember { mutableStateOf("3") }
@@ -1075,7 +1075,7 @@ private fun ActivityDialog(onDismiss: () -> Unit, onSave: (String, Double, Doubl
 }
 
 @Composable
-private fun SessionCheckinDialog(
+internal fun SessionCheckinDialog(
     activity: ActivityRecord,
     onDismiss: () -> Unit,
     onSave: (Int, String, Int) -> Unit,
@@ -1112,7 +1112,7 @@ private fun SessionCheckinDialog(
 }
 
 @Composable
-private fun StrengthDialog(onDismiss: () -> Unit, onSave: (String, Int, Int, Boolean, String, Int, Int, Double) -> Unit) {
+internal fun StrengthDialog(onDismiss: () -> Unit, onSave: (String, Int, Int, Boolean, String, Int, Int, Double) -> Unit) {
     var category by remember { mutableStateOf("leg") }
     var exercise by remember { mutableStateOf("Squat") }
     var duration by remember { mutableStateOf("20") }
@@ -1147,7 +1147,7 @@ private fun StrengthDialog(onDismiss: () -> Unit, onSave: (String, Int, Int, Boo
 }
 
 @Composable
-private fun StrengthTargetDialog(current: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
+internal fun StrengthTargetDialog(current: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
     var days by remember(current) { mutableIntStateOf(current) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Target strength mingguan") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1159,7 +1159,7 @@ private fun StrengthTargetDialog(current: Int, onDismiss: () -> Unit, onSave: (I
 }
 
 @Composable
-private fun ParqDialog(current: List<Boolean?>, onDismiss: () -> Unit, onSave: (List<Boolean?>) -> Unit) {
+internal fun ParqDialog(current: List<Boolean?>, onDismiss: () -> Unit, onSave: (List<Boolean?>) -> Unit) {
     val questions = listOf(
         "Dokter pernah menyatakan Anda memiliki kondisi jantung dan hanya boleh berolahraga sesuai rekomendasi tenaga kesehatan?",
         "Apakah Anda merasakan nyeri dada saat melakukan aktivitas fisik?",
@@ -1187,7 +1187,7 @@ private fun ParqDialog(current: List<Boolean?>, onDismiss: () -> Unit, onSave: (
 }
 
 @Composable
-private fun PlanRaceDialog(
+internal fun PlanRaceDialog(
     current: com.runnow.domain.Settings,
     onDismiss: () -> Unit,
     onSave: (com.runnow.domain.Settings) -> Unit,
@@ -1299,7 +1299,7 @@ private fun PlanRaceDialog(
 }
 
 @Composable
-private fun WellnessDialog(onDismiss: () -> Unit, onSave: (Int, Double, Double) -> Unit) {
+internal fun WellnessDialog(onDismiss: () -> Unit, onSave: (Int, Double, Double) -> Unit) {
     var rhr by remember { mutableStateOf("60") }
     var sleep by remember { mutableStateOf("7") }
     var hrv by remember { mutableStateOf("") }
@@ -1314,7 +1314,7 @@ private fun WellnessDialog(onDismiss: () -> Unit, onSave: (Int, Double, Double) 
 }
 
 @Composable
-private fun ProfileDialog(profile: AthleteProfile, onDismiss: () -> Unit, onSave: (AthleteProfile) -> Unit) {
+internal fun ProfileDialog(profile: AthleteProfile, onDismiss: () -> Unit, onSave: (AthleteProfile) -> Unit) {
     var rhr by remember { mutableStateOf(profile.restingHr.toString()) }
     var max by remember { mutableStateOf(profile.maxHr.toString()) }
     var lt by remember { mutableStateOf(profile.thresholdHr.toString()) }
@@ -1343,7 +1343,7 @@ private fun ProfileDialog(profile: AthleteProfile, onDismiss: () -> Unit, onSave
 }
 
 @Composable
-private fun WorkoutComposerDialog(
+internal fun WorkoutComposerDialog(
     recommendation: com.runnow.domain.Recommendation?,
     onDismiss: () -> Unit,
     onSend: (String, String, String) -> Unit
@@ -1415,7 +1415,7 @@ private fun WorkoutComposerDialog(
     )
 }
 
-private fun recommendationWorkoutText(recommendation: com.runnow.domain.Recommendation): String {
+internal fun recommendationWorkoutText(recommendation: com.runnow.domain.Recommendation): String {
     recommendation.wl?.takeIf { it.isNotEmpty() }?.let { return it.joinToString("\n").trim() }
     return recommendation.steps.mapNotNull { (label, detail) ->
         val repeat = Regex("(\\d+)\\s*[x×]\\s*(\\d+)\\s*m(?:nt|enit)", RegexOption.IGNORE_CASE).find(detail)
@@ -1434,7 +1434,7 @@ private fun recommendationWorkoutText(recommendation: com.runnow.domain.Recommen
 }
 
 @Composable
-private fun ApiKeyDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
+internal fun ApiKeyDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
     var key by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1455,10 +1455,10 @@ private fun ApiKeyDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
 }
 
 @Composable
-private fun NumberField(label: String, value: String, onValue: (String) -> Unit) {
+internal fun NumberField(label: String, value: String, onValue: (String) -> Unit) {
     OutlinedTextField(value, onValue, label = { Text(label) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
 }
 
-private fun strengthLabel(value: String) = when(value) { "hip" -> "Pinggul"; "calf" -> "Betis"; "leg" -> "Kaki"; "core" -> "Core"; "drill" -> "Drill"; else -> "Strength" }
-private fun fmt(value: Double) = RunSenseFormat.integer(value)
-private fun pace(minutesPerKm: Double): String = RunSenseFormat.pace(minutesPerKm)
+internal fun strengthLabel(value: String) = when(value) { "hip" -> "Pinggul"; "calf" -> "Betis"; "leg" -> "Kaki"; "core" -> "Core"; "drill" -> "Drill"; else -> "Strength" }
+internal fun fmt(value: Double) = RunSenseFormat.integer(value)
+internal fun pace(minutesPerKm: Double): String = RunSenseFormat.pace(minutesPerKm)

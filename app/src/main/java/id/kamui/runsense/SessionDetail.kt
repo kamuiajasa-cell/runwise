@@ -78,7 +78,7 @@ fun SessionDetailDialog(
                     }
                     item {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SessionMetric("JARAK", distance, Modifier.weight(1f))
+                            SessionMetric("JARAK KM", distance, Modifier.weight(1f))
                             SessionMetric("DURASI", duration, Modifier.weight(1f))
                             SessionMetric("PACE /KM", pace, Modifier.weight(1f))
                         }

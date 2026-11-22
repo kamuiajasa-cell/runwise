@@ -23,19 +23,31 @@ object TrainingEngine {
         return (a.durationMin / 60.0 * 100.0 * factor * factor).roundToInt().toDouble()
     }
 
+    private fun strengthDose(item: StrengthRecord): Double {
+        val categoryWeight = when (item.category) {
+            "hip" -> 1.0
+            "calf" -> 1.2
+            "leg" -> 1.25
+            "core" -> 0.1
+            "drill" -> 0.55
+            else -> 0.5
+        }
+        val effortDose = categoryWeight * (1.0 + item.level.coerceIn(0, 4) * 0.45)
+        val volumeMultiplier = if (item.sets > 0 && item.reps > 0) {
+            (item.sets.toDouble() * item.reps / 30.0).coerceIn(0.5, 2.0)
+        } else 1.0
+        val externalLoadMultiplier = 1.0 + item.resistanceKg.coerceIn(0.0, 40.0) / 80.0
+        return effortDose * volumeMultiplier * externalLoadMultiplier
+    }
+
     fun strengthLoad48h(strength: List<StrengthRecord>, now: Long = System.currentTimeMillis()): Pair<Double, Double> {
-        val weights = mapOf("hip" to 1.0, "calf" to 1.2, "leg" to 1.25, "core" to 0.1, "drill" to 0.55)
-        var total = 0.0; var legs = 0.0
+        var total = 0.0
+        var legs = 0.0
         strength.filter { it.completed }.forEach { item ->
             val stamp = parseDate(item.date) ?: return@forEach
             val age = now - stamp
             if (age < -12 * 60 * 60 * 1000L || age > 48 * 60 * 60 * 1000L) return@forEach
-            val effortDose = (weights[item.category] ?: 0.5) * (1.0 + item.level.coerceIn(0, 4) * 0.45)
-            val volumeMultiplier = if (item.sets > 0 && item.reps > 0) {
-                (item.sets.toDouble() * item.reps / 30.0).coerceIn(0.5, 2.0)
-            } else 1.0
-            val externalLoadMultiplier = 1.0 + item.resistanceKg.coerceIn(0.0, 40.0) / 80.0
-            val dose = effortDose * volumeMultiplier * externalLoadMultiplier
+            val dose = strengthDose(item)
             total += dose
             if (item.category in setOf("hip", "calf", "leg", "drill")) legs += dose
         }
@@ -50,8 +62,9 @@ object TrainingEngine {
         val hard = activities.count { now - it.startedAt in 0..(7 * DAY) && it.quality && it.type == "run" }
         val reasons = mutableListOf<String>()
         var score = 70; var inputs = 0
-        val recent = wellness.sortedBy { it.date }.takeLast(3)
-        val baseline = wellness.filter { it.restingHr > 30 }.dropLast(3).map { it.restingHr }.sorted()
+        val orderedWellness = wellness.sortedBy { it.date }
+        val recent = orderedWellness.takeLast(3)
+        val baseline = orderedWellness.dropLast(3).filter { it.restingHr > 30 }.map { it.restingHr }.sorted()
         if (recent.any { it.restingHr > 30 } && baseline.size >= 5) {
             val current = recent.filter { it.restingHr > 30 }.map { it.restingHr }.average()
             val delta = current - baseline[baseline.size / 2]

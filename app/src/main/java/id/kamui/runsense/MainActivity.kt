@@ -186,7 +186,7 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
                 NavigationBar(containerColor = Ink, contentColor = White, tonalElevation = 0.dp) {
                     primaryTabs.forEach { tab ->
                         NavigationBarItem(selected = selected == tab, onClick = { selected = tab },
-                            icon = { Text(tab.mark, fontSize = 17.sp) }, label = { Text(tab.label, fontSize = 9.sp, maxLines = 1) },
+                            icon = { Text(tab.mark, fontSize = 17.sp) }, label = { Text(tab.label, fontSize = 11.sp, maxLines = 1) },
                             colors = NavigationBarItemDefaults.colors(selectedIconColor = Lime, selectedTextColor = Lime,
                                 indicatorColor = Lime.copy(alpha = .13f), unselectedIconColor = Muted, unselectedTextColor = Muted))
                     }
@@ -194,7 +194,7 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
             }
         ) { padding ->
             when (selected) {
-                RunTab.HOME -> HomeScreen(activities, summary, domainResult, baseSnapshot, planSettings, weather, weatherMessage, Modifier.padding(padding), onAdd = { showActivity = true }, onStrength = { showStrength = true }, onRefreshWeather = { refreshWeather() }, onWorkout = { showWorkoutComposer = true })
+                RunTab.HOME -> HomeScreen(activities, summary, domainResult, baseSnapshot, planSettings, weather, weatherMessage, Modifier.padding(padding), onAdd = { showActivity = true }, onStrength = { showStrength = true }, onRefreshWeather = { refreshWeather() }, onWorkout = { showWorkoutComposer = true }, onViewAll = { selected = RunTab.TRAINING })
                 RunTab.TRAINING -> TrainingScreen(activities, strength, profile, domainResult, baseSnapshot, repository, Modifier.padding(padding), onAdd = { showActivity = true }, onStrength = { showStrength = true }, onCheckin = { checkinActivity = it })
                 RunTab.PROGRESS -> ProgressScreen(
                     activities, summary, domainResult, baseSnapshot, repository, strength, profile, Modifier.padding(padding),
@@ -333,7 +333,7 @@ private fun RunWalkSettingsCard(value: RunWalkSettings, onSave: (RunWalkSettings
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Pakai run-walk di semua tahap", color = White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                Text("Mengubah struktur sesi Coach untuk sesi yang sesuai.", color = Muted, fontSize = 10.sp)
+                Text("Mengubah struktur sesi Coach untuk sesi yang sesuai.", color = Muted, fontSize = 11.sp)
             }
             Switch(checked = enabled, onCheckedChange = { enabled = it; onSave(value.copy(enabled = it)) })
         }
@@ -343,7 +343,7 @@ private fun RunWalkSettingsCard(value: RunWalkSettings, onSave: (RunWalkSettings
         }
         Button(onClick = { onSave(RunWalkSettings(enabled, parseTime(run, value.runSeconds), parseTime(walk, value.walkSeconds))) }, modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = Panel, contentColor = Lime)) { Text("Simpan pola run-walk") }
-        Text("Default RunSense: 3:45 lari + 0:30 jalan. Struktur ini hanya diterapkan pada sesi Coach yang sesuai; target pace dan data aktivitas tidak diubah.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+        Text("Default RunSense: 3:45 lari + 0:30 jalan. Struktur ini hanya diterapkan pada sesi Coach yang sesuai; target pace dan data aktivitas tidak diubah.", color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
     }
 }
 
@@ -353,27 +353,32 @@ private fun Page(modifier: Modifier, content: @Composable ColumnScope.() -> Unit
 }
 
 @Composable
-private fun HomeScreen(activities: List<ActivityRecord>, summary: TrainingSummary, domainResult: com.runnow.domain.ProcessResult?, snapshot: Snapshot?, planSettings: com.runnow.domain.Settings, weather: WeatherSnapshot?, weatherMessage: String, modifier: Modifier, onAdd: () -> Unit, onStrength: () -> Unit, onRefreshWeather: () -> Unit, onWorkout: () -> Unit) {
+private fun HomeScreen(activities: List<ActivityRecord>, summary: TrainingSummary, domainResult: com.runnow.domain.ProcessResult?, snapshot: Snapshot?, planSettings: com.runnow.domain.Settings, weather: WeatherSnapshot?, weatherMessage: String, modifier: Modifier, onAdd: () -> Unit, onStrength: () -> Unit, onRefreshWeather: () -> Unit, onWorkout: () -> Unit, onViewAll: () -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { HomePageHero() }
-        item { WeatherCard(weather, weatherMessage, onRefreshWeather) }
+        item { HomeWeatherSummary(weather, onRefreshWeather) }
         item { CoachRecommendationCard(domainResult?.recommendation, onWorkout) }
         item { ReadinessCard(summary.readiness ?: domainResult?.athlete?.score, summary.recommendation) }
         item { WeeklyPlanHomeCard(snapshot, planSettings) }
-        item { SectionKicker("YOUR TRAINING", "01") }
+        item { SectionKicker("LATIHANMU", "01") }
         item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             MetricCard("BEBAN 7 HARI", fmt(summary.acuteLoad), Modifier.weight(1f))
             MetricCard("ACWR", summary.acwr?.let { "%.2f".format(Locale.US, it) } ?: "—", Modifier.weight(1f))
-            MetricCard("STRENGTH 48J", "%.1f".format(Locale.US, summary.strengthLoad48h), Modifier.weight(1f))
+            MetricCard("STRENGTH 48J", RunSenseFormat.decimal(summary.strengthLoad48h, 1), Modifier.weight(1f))
         } }
         item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(onClick = onAdd, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = Ink)) { Text("＋ Catat latihan") }
             OutlinedButton(onClick = onStrength, modifier = Modifier.weight(1f)) { Text("＋ Strength") }
         } }
-        item { SectionKicker("RECENT ACTIVITY", "02") }
-        item { SectionTitle("Aktivitas terbaru", "TERSIMPAN DI PERANGKAT") }
-        if (activities.isEmpty()) item { EmptyCard("Belum ada aktivitas. Tambahkan sesi pertama untuk mulai membangun analisis beban.") }
-        items(activities.take(5), key = { it.id }) { ActivityCard(it) }
+        item { SectionKicker("AKTIVITAS TERBARU", "02") }
+        item {
+            val latest = activities.firstOrNull { it.type.equals("run", true) || it.type.equals("walk", true) }
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                if (latest == null) EmptyCard("Belum ada lari tersimpan. Tambahkan sesi pertama untuk mulai membangun analisis beban.")
+                else ActivityCard(latest, onClick = onViewAll)
+                TextButton(onClick = onViewAll, modifier = Modifier.fillMaxWidth()) { Text("Lihat semua riwayat", color = Lime) }
+            }
+        }
     }
 }
 
@@ -389,12 +394,12 @@ private fun WeeklyPlanHomeCard(snapshot: Snapshot?, settings: com.runnow.domain.
         Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("RENCANA MINGGUAN", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Text("RENCANA MINGGUAN", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     Text(if (hasPlan) "Ritme latihanmu" else "Belum ada jadwal tetap", color = White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
                 if (phase != null) {
                     Surface(color = Lime.copy(alpha = .14f), shape = RoundedCornerShape(20.dp)) {
-                        Text("${phase.k.uppercase()} · ${phase.days} hari", Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = Lime, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text("${phase.k.uppercase()} · ${phase.days} hari", Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -402,21 +407,21 @@ private fun WeeklyPlanHomeCard(snapshot: Snapshot?, settings: com.runnow.domain.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     planned.forEach { (day, plan) ->
                         Column(Modifier.weight(1f).background(Ink, RoundedCornerShape(9.dp)).padding(vertical = 8.dp, horizontal = 2.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(days[PLAN_DAYS.indexOf(day)], color = Muted, fontSize = 9.sp)
+                            Text(days[PLAN_DAYS.indexOf(day)], color = Muted, fontSize = 11.sp)
                             Text(when (plan?.t) { "easy" -> "E"; "quality" -> "Q"; "long" -> "L"; "rest" -> "R"; else -> if (plan == null) "—" else "A" }, color = if (plan == null || plan.t == "rest") Muted else Lime, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            Text(if (plan == null || plan.km <= 0) " " else "%.1f".format(Locale.US, plan.km), color = Muted, fontSize = 8.sp)
+                            Text(if (plan == null || plan.km <= 0) " " else "%.1f".format(Locale.US, plan.km), color = Muted, fontSize = 11.sp)
                         }
                     }
                 }
-                Text("E easy · Q quality · L long · R istirahat · A otomatis", color = Muted, fontSize = 9.sp)
+                Text("E easy · Q quality · L long · R istirahat · A otomatis", color = Muted, fontSize = 11.sp)
             } else {
                 Text("Atur hari easy, quality, long run, atau istirahat melalui pengaturan rencana di Coach.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
             }
             if (cutback || flag != null || phase != null) {
                 HorizontalDivider(color = Ink)
-                if (cutback) Text("Cutback layak dipertimbangkan: long run tiga minggu terakhir relatif stabil. Turunkan beban, jangan menambah jarak.", color = Lime, fontSize = 10.sp, lineHeight = 15.sp)
-                if (flag != null) Text(if (flag.lv == 2) "Penanda nyeri/kaki aktif · hari ${flag.dayN}/14. Hindari sesi quality dan evaluasi gejala." else "Penanda waspada kaki aktif · hari ${flag.dayN}/7. Pantau respons sebelum menaikkan beban.", color = Color(0xFFFFC66D), fontSize = 10.sp, lineHeight = 15.sp)
-                if (phase != null) Text(when (phase.k) { "race" -> "Hari lomba. Prioritaskan kesiapan dan strategi lomba."; "taper" -> "Fase taper: kurangi volume, jaga kaki tetap segar."; "peak" -> "Fase peak: pertahankan sesi kunci tanpa menambah beban mendadak."; else -> "Fase build: bangun konsistensi dan progres bertahap." }, color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                if (cutback) Text("Cutback layak dipertimbangkan: long run tiga minggu terakhir relatif stabil. Turunkan beban, jangan menambah jarak.", color = Lime, fontSize = 11.sp, lineHeight = 15.sp)
+                if (flag != null) Text(if (flag.lv == 2) "Penanda nyeri/kaki aktif · hari ${flag.dayN}/14. Hindari sesi quality dan evaluasi gejala." else "Penanda waspada kaki aktif · hari ${flag.dayN}/7. Pantau respons sebelum menaikkan beban.", color = Color(0xFFFFC66D), fontSize = 11.sp, lineHeight = 15.sp)
+                if (phase != null) Text(when (phase.k) { "race" -> "Hari lomba. Prioritaskan kesiapan dan strategi lomba."; "taper" -> "Fase taper: kurangi volume, jaga kaki tetap segar."; "peak" -> "Fase peak: pertahankan sesi kunci tanpa menambah beban mendadak."; else -> "Fase build: bangun konsistensi dan progres bertahap." }, color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
             }
         }
     }
@@ -642,7 +647,7 @@ private fun ProgressScreen(
         val delta = priorPace?.let { (currentPace - it) * 60.0 }
         if (delta != null) deltas += delta
         val change = delta?.let { " · " + when { it < -1 -> "−${abs(it).roundToInt()} dtk"; it > 1 -> "+${it.roundToInt()} dtk"; else -> "sama" } } ?: ""
-        performanceRows += label to "${paceText(currentPace)}/km · ${current.distanceKm} km$change"
+        performanceRows += label to "${paceText(currentPace)}/km · ${RunSenseFormat.distanceKm(current.distanceKm)}$change"
     }
     val performanceStatus = median(deltas)?.let { if (it <= -5) "Membaik" else if (it >= 5) "Perlu perhatian" else "Stabil" } ?: "Belum cukup data"
     val performanceInsight = when {
@@ -802,7 +807,7 @@ private fun ProgressScreen(
         add("Strength selesai · 28 hari" to recentStrength.size.toString())
         add("Readiness terbaru" to (readiness?.let { "$it/100" } ?: "Belum ada data"))
         if (recentRhr != null) add("RHR 7 data terbaru" to "${recentRhr.roundToInt()} bpm" + (baseRhr?.let { " · baseline ${it.roundToInt()}" } ?: ""))
-        if (sleepMedian != null) add("Tidur median" to "${ "%.1f jam".format(Locale.US, sleepMedian) }")
+        if (sleepMedian != null) add("Tidur median" to "${RunSenseFormat.sleepHours(sleepMedian)}")
     }
     val summaryRows = listOf(
         "Performa" to performanceStatus,
@@ -812,23 +817,22 @@ private fun ProgressScreen(
         "Keberlanjutan" to sustainabilityStatus
     )
     val dateFmt = java.time.format.DateTimeFormatter.ofPattern(if (rangeWeeks >= 26) "d MMM yyyy" else "d MMM", Locale("id", "ID"))
-    val periodActivities = activities.filter { it.startedAt >= fromMs && it.startedAt <= now }.sortedByDescending { it.startedAt }
 
     Page(modifier) {
         PageHero("PERFORMANCE INTELLIGENCE", "See how far", "you've grown.", "Lima sisi dinilai terpisah, tanpa skor gabungan. Kesimpulan mengikuti kecukupan data.")
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             listOf(8 to "8 minggu", 12 to "12 minggu", 26 to "6 bulan", 52 to "1 tahun").forEach { (value, label) ->
-                FilterChip(selected = rangeWeeks == value, onClick = { rangeWeeks = value }, label = { Text(label, fontSize = 9.sp) })
+                FilterChip(selected = rangeWeeks == value, onClick = { rangeWeeks = value }, label = { Text(label, fontSize = 11.sp) })
             }
         }
-        Text("PERIODE · ${fromDate.format(dateFmt)} – ${today.format(dateFmt)}", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        Text("PERIODE · ${fromDate.format(dateFmt)} – ${today.format(dateFmt)}", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 Text("Ringkasan progres", color = White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 summaryRows.forEach { (label, status) ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(label, color = White, fontSize = 11.sp)
-                        Text(status, color = if (status in setOf("Membaik", "Stabil", "Konsisten")) Lime else Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(status, color = if (status in setOf("Membaik", "Stabil", "Konsisten")) Lime else Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -843,15 +847,15 @@ private fun ProgressScreen(
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
-                        Text("Sesi selesai", color = Muted, fontSize = 10.sp)
+                        Text("Sesi selesai", color = Muted, fontSize = 11.sp)
                         Text(recentStrength.size.toString(), color = Lime, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     }
                     Column {
-                        Text("Total set", color = Muted, fontSize = 10.sp)
+                        Text("Total set", color = Muted, fontSize = 11.sp)
                         Text(strengthSets.toString(), color = White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     }
                     Column {
-                        Text("Repetisi", color = Muted, fontSize = 10.sp)
+                        Text("Repetisi", color = Muted, fontSize = 11.sp)
                         Text(strengthReps.toString(), color = White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     }
                 }
@@ -859,7 +863,7 @@ private fun ProgressScreen(
                 Text(
                     if (previousStrength.isEmpty()) "Pembanding 28 hari sebelumnya belum tersedia."
                     else "Dibanding 28 hari sebelumnya: ${if (change > 0) "+" else ""}$change sesi (${previousStrength.size} → ${recentStrength.size}).",
-                    color = Muted, fontSize = 10.sp
+                    color = Muted, fontSize = 11.sp
                 )
                 if (strengthExternalVolume > 0) {
                     Text("Volume beban eksternal: ${"%.0f".format(Locale.US, strengthExternalVolume)} kg-rep", color = White, fontSize = 11.sp)
@@ -884,14 +888,12 @@ private fun ProgressScreen(
         SectionTitle("Kapasitas mingguan", "$rangeWeeks MINGGU")
         weekly.forEach { (week, km, count) ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("${week.format(dateFmt)} · $count sesi", color = Muted, fontSize = 10.sp)
-                Text("%.1f km".format(Locale.US, km), color = White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("${week.format(dateFmt)} · $count sesi", color = Muted, fontSize = 11.sp)
+                Text("%.1f km".format(Locale.US, km), color = White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
             LinearProgressIndicator(progress = (km / (weekly.maxOfOrNull { it.second }?.coerceAtLeast(1.0) ?: 1.0)).toFloat().coerceIn(0f, 1f), modifier = Modifier.fillMaxWidth().height(5.dp), color = Lime.copy(alpha = .75f), trackColor = Color.White.copy(alpha = .08f))
         }
-        SectionTitle("Aktivitas periode ini", "CHECK-IN")
-        if (periodActivities.isEmpty()) EmptyCard("Belum ada aktivitas pada rentang waktu ini.")
-        else periodActivities.take(30).forEach { CheckinActivityCard(it, onCheckin) }
+
     }
 }
 
@@ -904,23 +906,31 @@ private fun ProgressDimensionCard(
     rows: List<Pair<String, String>>,
     insight: String
 ) {
+    var expanded by remember(title) { mutableStateOf(false) }
     Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(title, color = White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                Text(status, color = if (status in setOf("Membaik", "Stabil", "Konsisten")) Lime else Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-            }
-            Text(subtitle, color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
-            if (rows.isEmpty()) Text("Belum ada data yang memenuhi syarat.", color = Muted, fontSize = 10.sp)
-            rows.forEach { (label, value) ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                    Text(label, color = Muted, fontSize = 10.sp, modifier = Modifier.weight(1f))
-                    Text(value, color = White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            Row(Modifier.fillMaxWidth().clickable { expanded = !expanded }, horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(title, color = White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(subtitle, color = Muted, fontSize = 11.sp, maxLines = 1)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(status, color = if (status in setOf("Membaik", "Stabil", "Konsisten")) Lime else Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(if (expanded) "Tutup" else "Detail", color = Lime, fontSize = 11.sp)
                 }
             }
-            Divider(color = Color.White.copy(alpha = .08f))
-            Text(insight, color = White, fontSize = 10.sp, lineHeight = 15.sp)
-            Text("KEYAKINAN DATA · ${confidence}", color = Muted, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = .6.sp)
+            if (expanded) {
+                if (rows.isEmpty()) Text("Belum ada data yang memenuhi syarat.", color = Muted, fontSize = 11.sp)
+                rows.forEach { (label, value) ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                        Text(label, color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                        Text(value, color = White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                    }
+                }
+                Divider(color = Color.White.copy(alpha = .08f))
+                Text(insight, color = White, fontSize = 11.sp, lineHeight = 16.sp)
+                Text("KEYAKINAN DATA · \${confidence}", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = .6.sp)
+            }
         }
     }
 }
@@ -959,7 +969,7 @@ private fun WeeklyDistanceChart(activities: List<ActivityRecord>) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 dates.forEach { date ->
                     Text(date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, Locale("id", "ID")),
-                        color = if (date == today) Lime else Muted, fontSize = 9.sp)
+                        color = if (date == today) Lime else Muted, fontSize = 11.sp)
                 }
             }
         }
@@ -996,7 +1006,7 @@ private fun TrainingTrendChart(activities: List<ActivityRecord>) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
                     Text("Tren 4 minggu", color = White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Text(if (metric == "pace") "Pace rata-rata lari (menit/km)" else "Detak jantung rata-rata (bpm)", color = Muted, fontSize = 10.sp)
+                    Text(if (metric == "pace") "Pace rata-rata lari (menit/km)" else "Detak jantung rata-rata (bpm)", color = Muted, fontSize = 11.sp)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     FilterChip(selected = metric == "pace", onClick = { metric = "pace" }, label = { Text("Pace") })
@@ -1027,10 +1037,10 @@ private fun TrainingTrendChart(activities: List<ActivityRecord>) {
                     weeks.forEachIndexed { index, week ->
                         val value = values[index]
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("M${index + 1}", color = Muted, fontSize = 9.sp)
+                            Text("M${index + 1}", color = Muted, fontSize = 11.sp)
                             Text(
                                 value?.let { if (metric == "pace") pace(it) else "${it.roundToInt()} bpm" } ?: "—",
-                                color = if (index == 3) Lime else White, fontSize = 9.sp, fontWeight = FontWeight.Bold
+                                color = if (index == 3) Lime else White, fontSize = 11.sp, fontWeight = FontWeight.Bold
                             )
                         }
                     }
@@ -1061,13 +1071,13 @@ private fun HeartRateZoneChart(activities: List<ActivityRecord>, snapshot: Snaps
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Waktu di zona HR", color = White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                Text("${sessions.size} sesi · 28 hari", color = Muted, fontSize = 9.sp)
+                Text("${sessions.size} sesi · 28 hari", color = Muted, fontSize = 11.sp)
             }
             averages.forEachIndexed { index, value ->
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(labels[index], color = if (index == 1) Lime else White, fontSize = 10.sp)
-                        Text("${value.roundToInt()}%", color = if (index == 1) Lime else Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(labels[index], color = if (index == 1) Lime else White, fontSize = 11.sp)
+                        Text("${value.roundToInt()}%", color = if (index == 1) Lime else Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                     LinearProgressIndicator(
                         progress = (value / 100.0).toFloat().coerceIn(0f, 1f),
@@ -1077,7 +1087,7 @@ private fun HeartRateZoneChart(activities: List<ActivityRecord>, snapshot: Snaps
                     )
                 }
             }
-            Text("Rata-rata berbobot durasi dari stream sesi. Zona memakai Heart Rate Reserve (RHR–HRmax), bukan LTHR.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+            Text("Rata-rata berbobot durasi dari stream sesi. Zona memakai Heart Rate Reserve (RHR–HRmax), bukan LTHR.", color = Muted, fontSize = 11.sp, lineHeight = 14.sp)
         }
     }
 }
@@ -1092,13 +1102,12 @@ private fun SessionReviewCard(item: ActivityItem, snapshot: Snapshot?, repositor
     var cadenceExpanded by remember(item.act.lid) { mutableStateOf(false) }
     Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text(item.title, color = White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Text(item.meta, color = Muted, fontSize = 11.sp)
             Text(review?.summary?.ifBlank { item.why } ?: item.why, color = White, fontSize = 12.sp, lineHeight = 17.sp)
-            review?.sections?.take(3)?.forEach { section ->
-                Text(section.title, color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                section.notes.take(2).forEach { note ->
-                    Text("• ${note.text}", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+            review?.sections?.take(3)?.forEachIndexed { index, section ->
+                DisclosureSection(section.title, initiallyExpanded = index == 0) {
+                    section.notes.take(3).forEach { note ->
+                        Text("• ${note.text}", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+                    }
                 }
             }
             if (rawPoints.isNotEmpty()) {
@@ -1106,7 +1115,7 @@ private fun SessionReviewCard(item: ActivityItem, snapshot: Snapshot?, repositor
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column {
                         Text("Kadens per 5 detik", color = Lime, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Text("${cadence.windows.size} segmen · ${cadence.runningWindows} lari · ${cadence.walkingWindows} jalan", color = Muted, fontSize = 10.sp)
+                        Text("${cadence.windows.size} segmen · ${cadence.runningWindows} lari · ${cadence.walkingWindows} jalan", color = Muted, fontSize = 11.sp)
                     }
                     TextButton(onClick = { cadenceExpanded = !cadenceExpanded }) {
                         Text(if (cadenceExpanded) "Tutup" else "Lihat")
@@ -1116,15 +1125,15 @@ private fun SessionReviewCard(item: ActivityItem, snapshot: Snapshot?, repositor
                 if (cadenceExpanded) {
                     cadence.windows.forEach { w ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(CadenceAnalyzer.formatTime(w.startSec), color = Muted, fontSize = 10.sp)
-                            Text(w.cadenceSpm?.let { "${it.roundToInt()} spm" } ?: "—", color = White, fontSize = 10.sp)
-                            Text(w.mode, color = if (w.mode == "Lari") Lime else Muted, fontSize = 10.sp)
-                            Text(CadenceAnalyzer.formatPace(w.paceSecPerKm), color = Muted, fontSize = 10.sp)
+                            Text(CadenceAnalyzer.formatTime(w.startSec), color = Muted, fontSize = 11.sp)
+                            Text(w.cadenceSpm?.let { "${it.roundToInt()} spm" } ?: "—", color = White, fontSize = 11.sp)
+                            Text(w.mode, color = if (w.mode == "Lari") Lime else Muted, fontSize = 11.sp)
+                            Text(CadenceAnalyzer.formatPace(w.paceSecPerKm), color = Muted, fontSize = 11.sp)
                         }
                     }
                 }
             } else {
-                Text("Stream sesi belum tersedia. Data stream diambil otomatis saat sinkronisasi; coba sinkronkan ulang jika sesi ini belum memiliki stream.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                Text("Stream sesi belum tersedia. Data stream diambil otomatis saat sinkronisasi; coba sinkronkan ulang jika sesi ini belum memiliki stream.", color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
             }
         }
     }
@@ -1135,32 +1144,32 @@ private fun WeeklyReviewCard(review: WeeklyReview) {
     val ratio = if (review.targetKm > 0) (review.actualKm / review.targetKm).coerceIn(0.0, 1.0).toFloat() else 0f
     Surface(color = Panel, shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
-            Text("RINGKASAN PELAKSANAAN", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
+            Text("RINGKASAN PELAKSANAAN", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text("%.1f km".format(Locale.US, review.actualKm), color = Lime, fontSize = 30.sp, fontWeight = FontWeight.Black)
-                    Text("realisasi hingga hari ini", color = Muted, fontSize = 10.sp)
+                    Text("realisasi hingga hari ini", color = Muted, fontSize = 11.sp)
                 }
                 Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text("%.1f km".format(Locale.US, review.targetKm), color = White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                    Text("target yang jatuh tempo", color = Muted, fontSize = 10.sp)
+                    Text("target yang jatuh tempo", color = Muted, fontSize = 11.sp)
                 }
             }
             LinearProgressIndicator(progress = ratio, modifier = Modifier.fillMaxWidth().height(7.dp), color = Lime, trackColor = Color.White.copy(alpha = .10f))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Kepatuhan sesi: ${review.adherencePercent?.let { "$it%" } ?: "belum ada sesi jatuh tempo"}", color = White, fontSize = 11.sp)
-                Text("${review.completedSessions}/${review.dueSessions} selesai", color = Muted, fontSize = 10.sp)
+                Text("${review.completedSessions}/${review.dueSessions} selesai", color = Muted, fontSize = 11.sp)
             }
             Divider(color = Color.White.copy(alpha = .08f))
-            Text("ARAH MINGGU DEPAN", color = Lime, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text("ARAH MINGGU DEPAN", color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             Text(review.adjustment, color = White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Text(review.rationale, color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Target rencana berikutnya", color = Muted, fontSize = 10.sp)
+                Text("Target rencana berikutnya", color = Muted, fontSize = 11.sp)
                 Text("%.1f km".format(Locale.US, review.nextWeekTargetKm), color = Lime, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
             if (review.extraKm > 0.2) {
-                Text("Ada %.1f km di luar target harian. Pastikan penambahan spontan ini tidak menumpuk dengan sesi berat.".format(Locale.US, review.extraKm), color = Color(0xFFFFC16B), fontSize = 10.sp, lineHeight = 15.sp)
+                Text("Ada %.1f km di luar target harian. Pastikan penambahan spontan ini tidak menumpuk dengan sesi berat.".format(Locale.US, review.extraKm), color = Color(0xFFFFC16B), fontSize = 11.sp, lineHeight = 15.sp)
             }
         }
     }
@@ -1169,7 +1178,7 @@ private fun WeeklyReviewCard(review: WeeklyReview) {
 @Composable
 private fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSummary, strength: List<StrengthRecord>, strengthTarget: Int, parqAnswers: List<Boolean?>, domainResult: com.runnow.domain.ProcessResult?, snapshot: Snapshot?, planSettings: com.runnow.domain.Settings, weather: WeatherSnapshot?, weatherMessage: String, modifier: Modifier, onRefreshWeather: () -> Unit, onWorkout: () -> Unit) {
     Page(modifier) {
-        PageHero("ADAPTIVE TRAINING", "Train with", "better insight.", "Evaluasi beban, pemulihan, strength, dan kondisi cuaca.")
+        PageHero("PELATIHAN ADAPTIF", "Train with", "better insight.", "Evaluasi beban, pemulihan, strength, dan kondisi cuaca.")
         WeatherCard(weather, weatherMessage, onRefreshWeather)
         val parqYes = parqAnswers.count { it == true }
         val parqAnswered = parqAnswers.count { it != null }
@@ -1194,8 +1203,8 @@ private fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSumma
         }
         MetricCard("ACWR", summary.acwr?.let { "%.2f".format(Locale.US, it) } ?: "Belum cukup data beban kronis", Modifier.fillMaxWidth())
         InfoCard("Sesi quality 7 hari", "${summary.qualitySessions7d} sesi tercatat", if (summary.qualitySessions7d >= 2) "KUNCI QUALITY" else "TERPANTAU")
-        InfoCard("Strength kaki 48 jam", "%.2f unit beban".format(Locale.US, summary.legStrengthLoad48h), if (summary.legStrengthLoad48h >= 3.4) "WASPADA BEBAN" else "NORMAL")
-        InfoCard("Total strength 48 jam", "%.2f unit beban".format(Locale.US, summary.strengthLoad48h), if (summary.strengthLoad48h >= 4.0) "BEBAN TINGGI" else "TERPANTAU")
+        InfoCard("Strength kaki 48 jam", "${RunSenseFormat.decimal(summary.legStrengthLoad48h, 1)} unit beban", if (summary.legStrengthLoad48h >= 3.4) "WASPADA BEBAN" else "NORMAL")
+        InfoCard("Total strength 48 jam", "${RunSenseFormat.decimal(summary.strengthLoad48h, 1)} unit beban", if (summary.strengthLoad48h >= 4.0) "BEBAN TINGGI" else "TERPANTAU")
         val recentCheckins = activities.filter {
             it.type.equals("run", true) && (it.rpe > 0 || it.pain > 0 || it.feel.isNotBlank())
         }.take(5)
@@ -1213,7 +1222,7 @@ private fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSumma
                 }
                 InfoCard(date.toString(), detail, tag)
             }
-            Text("RPE tinggi berulang atau nyeri yang bermakna akan menurunkan target minggu depan. Check-in tidak menggantikan pemeriksaan medis.", color = Muted, fontSize = 10.sp, lineHeight = 14.sp)
+            Text("RPE tinggi berulang atau nyeri yang bermakna akan menurunkan target minggu depan. Check-in tidak menggantikan pemeriksaan medis.", color = Muted, fontSize = 11.sp, lineHeight = 14.sp)
         }
         val weekStart = java.time.LocalDate.now().let { it.minusDays((it.dayOfWeek.value - 1).toLong()) }
         val strengthDaysThisWeek = strength.filter { it.completed && runCatching { java.time.LocalDate.parse(it.date) }.getOrNull()?.let { date -> !date.isBefore(weekStart) && !date.isAfter(weekStart.plusDays(6)) } == true }.map { it.date }.distinct().size
@@ -1225,7 +1234,7 @@ private fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSumma
             strength.sortedByDescending { it.date }.take(5).forEach { item ->
                 InfoCard(
                     strengthLabel(item.category),
-                    "${item.date} · ${item.durationMin} menit · level ${item.level}" + (if (item.exercise.isNotBlank()) " · ${item.exercise} ${item.sets}×${item.reps}" + (if (item.resistanceKg > 0) " @ ${item.resistanceKg} kg" else "") else ""),
+                    "${item.date} · ${RunSenseFormat.durationWholeMinutes(item.durationMin)} · level ${item.level}" + (if (item.exercise.isNotBlank()) " · ${item.exercise} ${item.sets}×${item.reps}" + (if (item.resistanceKg > 0) " @ ${RunSenseFormat.kg(item.resistanceKg)}" else "") else ""),
                     if (item.completed) "DIPERHITUNGKAN" else "BELUM SELESAI"
                 )
             }
@@ -1320,7 +1329,7 @@ private fun SettingsScreen(
     onRunWalk: (RunWalkSettings) -> Unit, onTheme: (Boolean) -> Unit, onStyle: (String) -> Unit
 ) {
     Page(modifier) {
-        PageHero("ATHLETE PROFILE", "Your", "profile.", "Atur data tubuh, target, jadwal latihan, dan koneksi data.")
+        PageHero("PROFIL ATLET", "Your", "profile.", "Atur data tubuh, target, jadwal latihan, dan koneksi data.")
         SectionTitle("Tampilan", "PERSONALISASI")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -1332,7 +1341,7 @@ private fun SettingsScreen(
         SectionTitle("Gaya coaching", "PREFERENSI COACH")
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf("conservative" to "Konservatif", "moderate" to "Moderat", "aggressive" to "Agresif").forEach { item ->
-                FilterChip(selected = coachingStyle == item.first, onClick = { onStyle(item.first) }, label = { Text(item.second, fontSize = 10.sp) })
+                FilterChip(selected = coachingStyle == item.first, onClick = { onStyle(item.first) }, label = { Text(item.second, fontSize = 11.sp) })
             }
         }
         SectionTitle("Pola lari–jalan", "SEMUA TAHAP")
@@ -1361,8 +1370,31 @@ private fun SettingsScreen(
         InfoCard("Status PAR-Q", if (answered < 7) "$answered/7 pertanyaan terisi" else if (yesCount > 0) "$yesCount jawaban YA — perlu tindak lanjut" else "Semua jawaban TIDAK", if (yesCount > 0) "PERHATIAN" else "SKRINING")
         OutlinedButton(onClick = onParq, modifier = Modifier.fillMaxWidth()) { Text("Isi / perbarui PAR-Q") }
         if (yesCount > 0) Text("Ada jawaban YA. Konsultasikan dengan tenaga kesehatan sebelum memulai atau meningkatkan latihan.", color = Color(0xFFFFC36A), fontSize = 11.sp, lineHeight = 16.sp)
-        SectionTitle("Wellness", "${wellness.size} HARI TERCATAT")
-        wellness.takeLast(7).reversed().forEach { InfoCard(it.date, "RHR ${it.restingHr} bpm · tidur ${it.sleepHours} jam · HRV ${if (it.hrv > 0) it.hrv else 0.0}", "TERSIMPAN") }
+        var showAllWellness by remember(wellness) { mutableStateOf(false) }
+        val wellnessToday = java.time.LocalDate.now()
+        val validWellness = wellness.filter { item ->
+            val date = runCatching { java.time.LocalDate.parse(item.date) }.getOrNull()
+            date != null && !date.isAfter(wellnessToday) &&
+                (item.restingHr > 0 || RunSenseFormat.valid(item.sleepHours) != null || RunSenseFormat.valid(item.hrv) != null)
+        }.sortedByDescending { it.date }
+        val recentWellness = validWellness.filter {
+            runCatching { java.time.LocalDate.parse(it.date) }.getOrNull()?.let { date -> !date.isBefore(wellnessToday.minusDays(2)) } == true
+        }
+        val wellnessRows = if (showAllWellness) validWellness else recentWellness
+        SectionTitle("Wellness", "\${validWellness.size} HARI VALID")
+        if (wellnessRows.isEmpty()) EmptyCard("Belum ada data wellness valid dalam 3 hari terakhir.")
+        wellnessRows.forEach { item ->
+            InfoCard(
+                RunSenseFormat.strengthDate(item.date),
+                "RHR \${RunSenseFormat.bpm(item.restingHr)} bpm · tidur \${RunSenseFormat.sleepHours(item.sleepHours)} · HRV \${RunSenseFormat.integer(item.hrv)}",
+                "TERSIMPAN"
+            )
+        }
+        if (validWellness.size > 3) {
+            TextButton(onClick = { showAllWellness = !showAllWellness }, modifier = Modifier.fillMaxWidth()) {
+                Text(if (showAllWellness) "Tampilkan 3 hari terakhir" else "Lihat semua (\${validWellness.size} hari)", color = Lime)
+            }
+        }
         OutlinedButton(onClick = onWellness) { Text("＋ Catat wellness hari ini") }
         Text("Data aktivitas dan wellness dari Huawei serta Intervals digabung ke riwayat lokal. API key disimpan di penyimpanan privat aplikasi.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
     }
@@ -1380,7 +1412,7 @@ private fun HomePageHero() {
     val date = SimpleDateFormat("EEEE, dd MMMM", Locale("id", "ID")).format(Date())
     Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("YOUR DAILY RUNNING BRIEF", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+            Text("YOUR DAILY RUNNING BRIEF", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
             Surface(color = Lime, shape = RoundedCornerShape(10.dp), modifier = Modifier.size(34.dp)) {
                 Box(contentAlignment = Alignment.Center) { Text("R", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black) }
             }
@@ -1400,7 +1432,7 @@ private fun HomePageHero() {
 @Composable
 private fun PageHero(eyebrow: String, title: String, accent: String, subtitle: String) {
     Column(Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(eyebrow, color = Lime, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.45.sp)
+        Text(eyebrow, color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.45.sp)
         Column(verticalArrangement = Arrangement.spacedBy((-3).dp)) {
             Text(title, color = White, fontSize = 32.sp, lineHeight = 34.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.1).sp)
             Text(accent, color = Lime, fontSize = 32.sp, lineHeight = 34.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.1).sp)
@@ -1412,9 +1444,28 @@ private fun PageHero(eyebrow: String, title: String, accent: String, subtitle: S
 @Composable
 private fun SectionKicker(label: String, index: String) {
     Row(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-        Text(label, color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.35.sp)
+        Text(label, color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.35.sp)
         Box(Modifier.weight(1f).height(1.dp).background(Color.White.copy(alpha = .10f)))
-        Text(index, color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        Text(index, color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun HomeWeatherSummary(weather: WeatherSnapshot?, onRefresh: () -> Unit) {
+    Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("CUACA HARI INI", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                val summary = when {
+                    weather == null -> "Belum tersedia"
+                    weather.temperatureC >= 30.0 -> "\${RunSenseFormat.decimal(weather.temperatureC, 1)}°C · Longgarkan pace"
+                    weather.precipitationMm >= 0.3 -> "\${RunSenseFormat.decimal(weather.temperatureC, 1)}°C · Waspadai hujan"
+                    else -> "\${RunSenseFormat.decimal(weather.temperatureC, 1)}°C · Kondisi relatif nyaman"
+                }
+                Text(summary, color = White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+            TextButton(onClick = onRefresh) { Text("Perbarui", color = Lime, fontSize = 11.sp) }
+        }
     }
 }
 
@@ -1432,19 +1483,19 @@ private fun WeatherCard(weather: WeatherSnapshot?, message: String, onRefresh: (
     Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("CUACA & KONTEKS LARI", color = Lime, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
-                Text(status, color = if (weather?.let { it.temperatureC >= 30.0 || it.precipitationMm >= 2.0 || it.weatherCode >= 95 } == true) Color(0xFFFFC36A) else Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                Text("CUACA & KONTEKS LARI", color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
+                Text(status, color = if (weather?.let { it.temperatureC >= 30.0 || it.precipitationMm >= 2.0 || it.weatherCode >= 95 } == true) Color(0xFFFFC36A) else Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
             if (weather == null) {
                 Text("Cuaca belum tersedia. Perbarui dengan lokasi perangkat untuk membaca suhu dan hujan.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
             } else {
                 Text("${"%.1f".format(Locale.US, weather.temperatureC)}°C", color = White, fontSize = 28.sp, fontWeight = FontWeight.Black)
-                Text("Terasa ${"%.1f".format(Locale.US, weather.apparentC)}°C · RH ${weather.humidityPct}% · angin ${"%.1f".format(Locale.US, weather.windKmh)} km/j · hujan ${"%.1f".format(Locale.US, weather.precipitationMm)} mm", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
-                if (weather.temperatureC >= 30.0) Text("Panas terdeteksi: turunkan tuntutan pace sekitar 6% dan gunakan HR/RPE sebagai panduan.", color = Color(0xFFFFC36A), fontSize = 10.sp, lineHeight = 15.sp)
-                Text("Open-Meteo · lokasi perangkat · ${SimpleDateFormat("HH:mm", Locale("id", "ID")).format(Date(weather.fetchedAt))}", color = Muted, fontSize = 9.sp)
+                Text("Terasa ${"%.1f".format(Locale.US, weather.apparentC)}°C · RH ${weather.humidityPct}% · angin ${"%.1f".format(Locale.US, weather.windKmh)} km/j · hujan ${"%.1f".format(Locale.US, weather.precipitationMm)} mm", color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
+                if (weather.temperatureC >= 30.0) Text("Panas terdeteksi: turunkan tuntutan pace sekitar 6% dan gunakan HR/RPE sebagai panduan.", color = Color(0xFFFFC36A), fontSize = 11.sp, lineHeight = 15.sp)
+                Text("Open-Meteo · lokasi perangkat · ${SimpleDateFormat("HH:mm", Locale("id", "ID")).format(Date(weather.fetchedAt))}", color = Muted, fontSize = 11.sp)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                if (message.isNotBlank()) Text(message, color = Muted, fontSize = 9.sp, modifier = Modifier.weight(1f))
+                if (message.isNotBlank()) Text(message, color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
                 TextButton(onClick = onRefresh) { Text("Perbarui cuaca") }
             }
         }
@@ -1456,7 +1507,7 @@ private fun CoachRecommendationCard(recommendation: com.runnow.domain.Recommenda
     if (recommendation == null) return
     Surface(color = Panel, shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Color.White.copy(alpha = .05f), RoundedCornerShape(26.dp))) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text("REKOMENDASI COACH · ${recommendation.tag}", color = Lime, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text("REKOMENDASI COACH · ${recommendation.tag}", color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             Text(recommendation.title, color = White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
             Text(listOf(recommendation.duration, recommendation.hr, recommendation.pace).filter { it.isNotBlank() && it != "—" }.joinToString(" · "), color = Lime, fontSize = 11.sp)
             Text(recommendation.reason, color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
@@ -1481,9 +1532,9 @@ private fun ReadinessCard(score: Int?, recommendation: String) {
     Surface(color = Panel, shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth().border(1.dp, Color.White.copy(alpha = .05f), RoundedCornerShape(26.dp))) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("READINESS HARI INI", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                Text("READINESS HARI INI", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
                 Text(if (score == null) "DATA TERBATAS" else if (score < 45) "PEMULIHAN" else if (score < 65) "KONTROL" else "SIAP TERPANTAU",
-                    color = if (score != null && score < 45) Color(0xFFFFB65C) else Lime, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    color = if (score != null && score < 45) Color(0xFFFFB65C) else Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.size(82.dp)) {
@@ -1491,7 +1542,7 @@ private fun ReadinessCard(score: Int?, recommendation: String) {
                         color = if (score != null && score < 45) Color(0xFFFFB65C) else Lime, trackColor = Color.White.copy(alpha = .10f), strokeWidth = 7.dp)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(score?.toString() ?: "—", color = White, fontSize = 27.sp, fontWeight = FontWeight.Black)
-                        Text("/100", color = Muted, fontSize = 9.sp)
+                        Text("/100", color = Muted, fontSize = 11.sp)
                     }
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -1508,7 +1559,7 @@ private fun ReadinessCard(score: Int?, recommendation: String) {
 private fun MetricCard(label: String, value: String, modifier: Modifier = Modifier) {
     Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = modifier.border(1.dp, Color.White.copy(alpha = .05f), RoundedCornerShape(16.dp))) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(label, color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            Text(label, color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             Text(value, color = White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
         }
     }
@@ -1518,7 +1569,7 @@ private fun MetricCard(label: String, value: String, modifier: Modifier = Modifi
 private fun SectionTitle(title: String, action: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Text(title, color = White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Text(action, color = Lime, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        Text(action, color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -1530,12 +1581,12 @@ private fun CheckinActivityCard(activity: ActivityRecord, onCheckin: (ActivityRe
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text("Lari · $stamp", color = White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Text("${activity.durationMin} menit · ${"%.2f".format(Locale.US, activity.distanceKm)} km · HR ${if (activity.averageHr > 0) activity.averageHr else "—"}", color = Muted, fontSize = 11.sp)
+                    Text("${RunSenseFormat.durationMinutes(activity.durationMin)} · ${RunSenseFormat.distanceKm(activity.distanceKm)} · HR ${RunSenseFormat.bpm(activity.averageHr)}", color = Muted, fontSize = 11.sp)
                 }
-                Text(if (activity.quality) "QUALITY" else "RUN", color = Lime, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                Text(if (activity.quality) "QUALITY" else "RUN", color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
             if (activity.rpe > 0 || activity.feel.isNotBlank() || activity.pain > 0) {
-                Text("RPE ${activity.rpe}/10 · ${activity.feel.ifBlank { "feel belum diisi" }} · nyeri ${activity.pain}/10", color = Muted, fontSize = 10.sp)
+                Text("RPE ${activity.rpe}/10 · ${activity.feel.ifBlank { "feel belum diisi" }} · nyeri ${activity.pain}/10", color = Muted, fontSize = 11.sp)
             }
             OutlinedButton(onClick = { onCheckin(activity) }, modifier = Modifier.fillMaxWidth()) {
                 Text(if (activity.rpe > 0 || activity.feel.isNotBlank() || activity.pain > 0) "Ubah check-in" else "Isi check-in RPE / nyeri")
@@ -1554,12 +1605,12 @@ private fun ActivityCard(a: ActivityRecord, profile: AthleteProfile = AthletePro
     ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("${a.type.replaceFirstChar { it.uppercase() }} · $stamp", color = White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                Text("${a.durationMin} menit · ${"%.2f".format(Locale.US, a.distanceKm)} km · HR ${if (a.averageHr > 0) a.averageHr else "—"}", color = Muted, fontSize = 11.sp)
+                Text("${RunSenseFormat.activityType(a.type)} · $stamp", color = White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text("${RunSenseFormat.durationMinutes(a.durationMin)} · ${RunSenseFormat.distanceKm(a.distanceKm)} · HR ${if (a.averageHr > 0) a.averageHr else "—"}", color = Muted, fontSize = 11.sp)
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("TL ${TrainingEngine.activityLoad(a, profile).roundToInt()}", color = Lime, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                Text("LIHAT ›", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                Text("TL ${TrainingEngine.activityLoad(a, profile).roundToInt()}", color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("LIHAT ›", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -1573,7 +1624,7 @@ private fun InfoCard(title: String, detail: String, tag: String) {
                 Text(title, color = White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 Text(detail, color = Muted, fontSize = 11.sp)
             }
-            Text(tag, color = Lime, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            Text(tag, color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -1615,17 +1666,17 @@ private fun ActivityDialog(onDismiss: () -> Unit, onSave: (String, Double, Doubl
                 Text("Bagaimana rasanya dibanding perkiraan?", color = White, fontSize = 11.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     listOf("lebih ringan", "sesuai").forEach { item ->
-                        FilterChip(selected = feel == item, onClick = { feel = item }, label = { Text(item, fontSize = 9.sp) })
+                        FilterChip(selected = feel == item, onClick = { feel = item }, label = { Text(item, fontSize = 11.sp) })
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     listOf("lebih berat", "sangat berat").forEach { item ->
-                        FilterChip(selected = feel == item, onClick = { feel = item }, label = { Text(item, fontSize = 9.sp) })
+                        FilterChip(selected = feel == item, onClick = { feel = item }, label = { Text(item, fontSize = 11.sp) })
                     }
                 }
                 Text("Nyeri saat/ setelah lari: ${pain.roundToInt()}/10", color = White, fontSize = 11.sp)
                 Slider(value = pain, onValueChange = { pain = it }, valueRange = 0f..10f, steps = 9)
-                Text("0 = tidak nyeri · 10 = nyeri sangat berat. Hentikan latihan bila nyeri mengganggu gerak.", color = Muted, fontSize = 10.sp)
+                Text("0 = tidak nyeri · 10 = nyeri sangat berat. Hentikan latihan bila nyeri mengganggu gerak.", color = Muted, fontSize = 11.sp)
             }
         } },
         confirmButton = { TextButton(onClick = {
@@ -1655,17 +1706,17 @@ private fun SessionCheckinDialog(
                 Text("Dibanding perkiraan awal", color = White, fontSize = 12.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     listOf("lebih ringan", "sesuai").forEach { item ->
-                        FilterChip(selected = feel == item, onClick = { feel = item }, label = { Text(item, fontSize = 9.sp) })
+                        FilterChip(selected = feel == item, onClick = { feel = item }, label = { Text(item, fontSize = 11.sp) })
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     listOf("lebih berat", "sangat berat").forEach { item ->
-                        FilterChip(selected = feel == item, onClick = { feel = item }, label = { Text(item, fontSize = 9.sp) })
+                        FilterChip(selected = feel == item, onClick = { feel = item }, label = { Text(item, fontSize = 11.sp) })
                     }
                 }
                 Text("Nyeri saat / setelah lari: ${pain.roundToInt()}/10", color = White, fontSize = 12.sp)
                 Slider(value = pain, onValueChange = { pain = it }, valueRange = 0f..10f, steps = 9)
-                Text("Jika nyeri mengubah langkah atau bertambah saat berlari, jangan memaksakan sesi berikutnya.", color = Muted, fontSize = 10.sp)
+                Text("Jika nyeri mengubah langkah atau bertambah saat berlari, jangan memaksakan sesi berikutnya.", color = Muted, fontSize = 11.sp)
             }
         },
         confirmButton = { TextButton(onClick = { onSave(rpe.roundToInt(), feel, pain.roundToInt()) }) { Text("Simpan check-in") } },
@@ -1831,7 +1882,7 @@ private fun PlanRaceDialog(
                         FilterChip(selected = style == item.first, onClick = { style = item.first }, label = { Text(item.second) })
                     }
                 }
-                Text("Coach menggunakan rencana ini untuk membandingkan target dengan aktivitas yang benar-benar tersimpan. Menyimpan tidak mengubah riwayat latihan.", color = Muted, fontSize = 10.sp, lineHeight = 14.sp)
+                Text("Coach menggunakan rencana ini untuk membandingkan target dengan aktivitas yang benar-benar tersimpan. Menyimpan tidak mengubah riwayat latihan.", color = Muted, fontSize = 11.sp, lineHeight = 14.sp)
             }
         },
         confirmButton = {
@@ -2023,7 +2074,4 @@ private fun NumberField(label: String, value: String, onValue: (String) -> Unit)
 
 private fun strengthLabel(value: String) = when(value) { "hip" -> "Pinggul"; "calf" -> "Betis"; "leg" -> "Kaki"; "core" -> "Core"; "drill" -> "Drill"; else -> "Strength" }
 private fun fmt(value: Double) = value.roundToInt().toString()
-private fun pace(minutesPerKm: Double): String {
-    val seconds = (minutesPerKm * 60).roundToInt()
-    return "${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}/km"
-}
+private fun pace(minutesPerKm: Double): String = RunSenseFormat.pace(minutesPerKm)

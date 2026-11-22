@@ -103,6 +103,7 @@ private data class NativeDashboard(
     val analysis: com.runnow.domain.ProcessResult?,
     val onboardingComplete: Boolean,
     val hasIntervalsKey: Boolean,
+    val apiKeyLastFour: String?,
     val lastSyncAt: Long
 )
 
@@ -191,7 +192,7 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
             }.getOrNull()
             NativeDashboard(profile, activities, strength, wellness, runWalk, planSettings,
                 repository.weeklyStrengthTarget(), repository.parqAnswers(), weather, snapshot,
-                summary, analysis, repository.onboardingComplete(), intervals.hasApiKey(), repository.lastSyncAt())
+                summary, analysis, repository.onboardingComplete(), intervals.hasApiKey(), intervals.apiKeyLastFour(), repository.lastSyncAt())
         }
     }
     val profile = dashboard?.profile ?: AthleteProfile()
@@ -310,7 +311,7 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
                     onRunWalk = { repository.saveRunWalkSettings(it); changed() },
                     onTheme = { lightTheme = it; repository.saveLightTheme(it) },
                     onStyle = { style -> repository.savePlanSettings(planSettings.copy(style = style)); changed() },
-                    hasIntervalsKey = hasIntervalsKey, syncBusy = syncBusy, syncMessage = syncMessage,
+                    hasIntervalsKey = hasIntervalsKey, apiKeyLastFour = dashboard?.apiKeyLastFour, syncBusy = syncBusy, syncMessage = syncMessage,
                     onProfile = { showProfile = true }, onWellness = { showWellness = true }, onPlanRace = { showPlanRace = true },
                     strengthTarget = strengthTarget, parqAnswers = parqAnswers,
                     onStrengthTarget = { showStrengthTarget = true }, onParq = { showParq = true },
@@ -1400,7 +1401,7 @@ private fun CoachScreen(activities: List<ActivityRecord>, summary: TrainingSumma
 private fun SettingsScreen(
     profile: AthleteProfile, wellness: List<WellnessRecord>, modifier: Modifier,
     strengthTarget: Int, parqAnswers: List<Boolean?>, onStrengthTarget: () -> Unit, onParq: () -> Unit,
-    hasIntervalsKey: Boolean, syncBusy: Boolean, syncMessage: String,
+    hasIntervalsKey: Boolean, apiKeyLastFour: String?, syncBusy: Boolean, syncMessage: String,
     onProfile: () -> Unit, onWellness: () -> Unit, onPlanRace: () -> Unit, onApiKey: () -> Unit,
     onBackupExport: () -> Unit, onBackupImport: () -> Unit, onSync: () -> Unit,
     onCoach: () -> Unit, onWatch: () -> Unit,
@@ -1436,7 +1437,7 @@ private fun SettingsScreen(
         SectionTitle("Rencana dan target race", "TERSIMPAN LOKAL")
         OutlinedButton(onClick = onPlanRace, modifier = Modifier.fillMaxWidth()) { Text("Atur rencana mingguan & race") }
         SectionTitle("Sinkronisasi Intervals.icu", if (hasIntervalsKey) "TERHUBUNG" else "BELUM TERHUBUNG")
-        Text(if (hasIntervalsKey) "API key tersimpan secara lokal. Sinkronkan aktivitas dan wellness dari akun Intervals.icu." else "Masukkan API key Intervals.icu untuk mengambil riwayat aktivitas dan wellness.", fontSize = 11.sp, lineHeight = 16.sp)
+        Text(if (hasIntervalsKey) "API key tersimpan aman · ••••" + (apiKeyLastFour ?: "••••") + ". Sinkronkan aktivitas dan wellness dari akun Intervals.icu." else "Masukkan API key Intervals.icu untuk mengambil riwayat aktivitas dan wellness.", fontSize = 11.sp, lineHeight = 16.sp)
         Button(onClick = onApiKey, colors = ButtonDefaults.buttonColors(containerColor = Panel, contentColor = Lime)) { Text(if (hasIntervalsKey) "Ganti API key" else "Masukkan API key") }
         OutlinedButton(onClick = onSync, enabled = hasIntervalsKey && !syncBusy) { Text(if (syncBusy) "Menyinkronkan…" else "Sinkronkan sekarang") }
         if (syncMessage.isNotBlank()) Text(syncMessage, color = Muted, fontSize = 11.sp, lineHeight = 16.sp)

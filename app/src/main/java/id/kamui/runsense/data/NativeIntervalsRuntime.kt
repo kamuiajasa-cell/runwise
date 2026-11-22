@@ -144,8 +144,16 @@ class NativeIntervalsRuntime(context: Context) {
                 val detail = response.take(240)
                 throw IllegalStateException("Intervals.icu menolak workout (HTTP $status)${if (detail.isNotBlank()) ": $detail" else ""}")
             }
-            val eventId = runCatching { org.json.JSONObject(response).optLong("id", 0L) }.getOrDefault(0L)
-            if (eventId > 0) "Workout berhasil dikirim ke kalender Intervals.icu (ID $eventId)." else "Workout berhasil dikirim ke kalender Intervals.icu."
+            val event = runCatching { org.json.JSONObject(response) }.getOrNull()
+            val eventId = event?.optLong("id", 0L) ?: 0L
+            // Intervals.icu parses its native workout-description syntax into workout_doc.steps.
+            // Do not send workout_doc ourselves: the API parser owns this field.
+            val parsedSteps = event?.optJSONObject("workout_doc")?.optJSONArray("steps")?.length() ?: 0
+            when {
+                eventId <= 0L -> "Workout dikirim, tetapi ID event tidak diterima. Periksa kalender Intervals.icu."
+                parsedSteps > 0 -> "Workout berhasil dikirim ke kalender Intervals.icu (ID $eventId · $parsedSteps langkah terstruktur)."
+                else -> "Workout tersimpan di kalender Intervals.icu (ID $eventId), tetapi respons belum memuat langkah terstruktur. Periksa deskripsi workout di Intervals.icu sebelum mengandalkannya untuk sinkronisasi perangkat."
+            }
         } finally {
             connection.disconnect()
         }

@@ -80,6 +80,7 @@ private fun applyRunSenseTheme(light: Boolean) {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         window.statusBarColor = android.graphics.Color.rgb(10, 10, 10)
         window.navigationBarColor = android.graphics.Color.rgb(10, 10, 10)
         val repository = RunSenseRepository(applicationContext)
@@ -272,8 +273,8 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
         applyRunSenseTheme(lightTheme)
         (context as? Activity)?.window?.let { window ->
             val bar = if (lightTheme) android.graphics.Color.rgb(241, 243, 237) else android.graphics.Color.rgb(10, 10, 10)
-            window.statusBarColor = bar
-            window.navigationBarColor = bar
+            window.statusBarColor = android.graphics.Color.TRANSPARENT
+            window.navigationBarColor = android.graphics.Color.TRANSPARENT
             androidx.core.view.WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = lightTheme
             androidx.core.view.WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightNavigationBars = lightTheme
         }
@@ -294,6 +295,7 @@ private fun RunSenseNativeApp(repository: RunSenseRepository, intervals: NativeI
                     }
                 }
             }
+            contentWindowInsets = WindowInsets.safeDrawing
         ) { padding ->
             when (selected) {
                 RunTab.HOME -> HomeScreen(activities, summary, domainResult, baseSnapshot, planSettings, weather, weatherMessage, dashboard?.lastSyncAt ?: 0L, Modifier.padding(padding), onAdd = { showActivity = true }, onStrength = { showStrength = true }, onRefreshWeather = { refreshWeather() }, onWorkout = { showWorkoutComposer = true }, onViewAll = { selected = RunTab.TRAINING })
